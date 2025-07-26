@@ -1,0 +1,34 @@
+{
+  "name": "ukoly-monorepo",
+  "version": "1.0.0",
+  "description": "Programming problems platform with Cloudflare ecosystem",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "workers/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter frontend dev\" \"pnpm --filter api-worker dev\"",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:api": "pnpm --filter api-worker dev",
+    "build": "pnpm --filter frontend build && pnpm --filter api-worker build",
+    "build:frontend": "pnpm --filter frontend build",
+    "build:api": "pnpm --filter api-worker build",
+    "deploy": "pnpm --filter api-worker deploy",
+    "install:all": "pnpm install",
+    "clean": "pnpm -r exec rm -rf node_modules && rm -rf node_modules"
+  },
+  "keywords": [
+    "programming",
+    "problems",
+    "cloudflare",
+    "react"
+  ],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.11.0",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  }
+}
