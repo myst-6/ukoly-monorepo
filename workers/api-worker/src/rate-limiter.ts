@@ -1,10 +1,8 @@
 export class RateLimiter {
   private state: DurableObjectState;
-  private env: any;
 
-  constructor(state: DurableObjectState, env: any) {
+  constructor(state: DurableObjectState) {
     this.state = state;
-    this.env = env;
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -23,7 +21,7 @@ export class RateLimiter {
     const maxRequests = 5; // 5 batches per minute
 
     // Get current request timestamps
-    let requests = (await this.state.storage.get("requests")) || [];
+    let requests = (await this.state.storage.get<number[]>("requests")) || [];
 
     // Remove old requests outside the window
     requests = requests.filter(

@@ -22,21 +22,35 @@ interface ExecutionResult {
 }
 
 export default function CodeExecutionPage() {
-  const [code, setCode] = useState(`// Write your JavaScript code here
-console.log("Hello, World!");`)
-  const [testCasesInput, setTestCasesInput] = useState(`Hello, World!
+  const [code, setCode] = useState(`const x = input();
+const y = input();
+
+const aX = Array(+x).fill(0);
+const aY = Array(+y).fill(0);
+
+let ans = 0;
+for (const _ of [...aX, ...aY]) {
+    ans += 1;
+}
+
+console.log(ans);
+`)
+  const [testCasesInput, setTestCasesInput] = useState(`3
+4
 ===
-Test case 2
+2000000
+3000000
 ===
-Another test case`)
+10000000
+80000000`)
   const [results, setResults] = useState<ExecutionResult[]>([])
   const [isExecuting, setIsExecuting] = useState(false)
 
   const parseTestCases = (input: string): TestCase[] => {
     return input.split('===').map((testCase, index) => ({
       stdin: testCase.trim(),
-      timeLimit: 5000, // 5 seconds
-      memoryLimit: 100 * 1024 * 1024 // 100MB
+      timeLimit: 1000, // 1 second
+      memoryLimit: 1024 * 1024 // 1MB
     }))
   }
 

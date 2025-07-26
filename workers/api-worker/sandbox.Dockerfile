@@ -1,5 +1,5 @@
 # Base image with all required tools
-FROM ubuntu:22.04
+FROM docker.io/cloudflare/sandbox:0.1.3
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -15,7 +15,6 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     nodejs \
-    npm \
     # Monitoring tools
     time \
     procps \
@@ -29,9 +28,8 @@ RUN apt-get update && apt-get install -y \
 COPY monitor.sh /usr/local/bin/monitor.sh
 RUN chmod +x /usr/local/bin/monitor.sh
 
-# Set up working directory
-WORKDIR /workspace
+# Expose port for container communication
+EXPOSE 3000
 
-# Create a non-root user for security
-RUN useradd -m -s /bin/bash coder
-USER coder 
+# Run server for cloudflare sandbox sdk to communicate with the container
+CMD ["bun", "index.ts"]
