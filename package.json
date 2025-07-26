@@ -14,7 +14,9 @@
     "build": "pnpm --filter frontend build && pnpm --filter api-worker build",
     "build:frontend": "pnpm --filter frontend build",
     "build:api": "pnpm --filter api-worker build",
-    "deploy": "pnpm --filter api-worker deploy",
+    "deploy": "pnpm run deploy:frontend && pnpm run deploy:api",
+    "deploy:frontend": "pnpm --filter frontend run deploy",
+    "deploy:api": "pnpm --filter api-worker run deploy",
     "install:all": "pnpm install",
     "clean": "pnpm -r exec rm -rf node_modules && rm -rf node_modules"
   },

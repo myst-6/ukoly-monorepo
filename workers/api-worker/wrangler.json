@@ -7,16 +7,9 @@
   },
   "containers": [
     {
-      "class_name": "Sandbox",
+      "class_name": "ExecutionSandbox",
       "image": "./sandbox.Dockerfile",
       "max_instances": 30
-    }
-  ],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "ukoly-db",
-      "database_id": "local"
     }
   ],
   "durable_objects": {
@@ -26,8 +19,8 @@
         "class_name": "RateLimiter"
       },
       {
-        "name": "Sandbox",
-        "class_name": "Sandbox"
+        "name": "ExecutionSandbox",
+        "class_name": "ExecutionSandbox"
       }
     ]
   },
@@ -35,10 +28,18 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["RateLimiter", "Sandbox"]
+    },
+    {
+      "tag": "v2",
+      "renamed_classes": [
+        {
+          "from": "Sandbox",
+          "to": "ExecutionSandbox"
+        }
+      ]
     }
   ],
   "vars": {
-    "SECRET_TOKEN": "dev-secret-token-123",
     "ENVIRONMENT": "development"
   },
   "env": {
