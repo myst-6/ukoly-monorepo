@@ -1,3 +1,5 @@
+// vibe coded trash
+
 import { useState, useRef, useCallback, useEffect } from "react";
 import Editor from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +20,7 @@ interface TestCase {
 	memoryLimit: number;
 }
 
-interface ExecutionResult {
+interface TestResult {
 	testCaseIndex: number;
 	stdout: string;
 	stderr: string;
@@ -32,7 +34,7 @@ interface ExecutionResult {
 
 interface WebSocketMessage {
 	type: 'result' | 'error' | 'complete' | 'compilation_error';
-	data?: ExecutionResult | string;
+	data?: TestResult | string;
 	totalTestCases?: number;
 }
 
@@ -140,12 +142,9 @@ export default function CodeExecutionPage() {
 	const [testCasesInput, setTestCasesInput] = useState(`3
 4
 ===
-2000000
-3000000
-===
-10000000
-80000000`);
-	const [results, setResults] = useState<ExecutionResult[]>([]);
+1000
+2000`);
+	const [results, setResults] = useState<TestResult[]>([]);
 	const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>({
 		isExecuting: false,
 		currentTestCase: 0,
@@ -328,7 +327,7 @@ export default function CodeExecutionPage() {
 				
 				switch (message.type) {
 					case 'result': {
-						const result = message.data as ExecutionResult;
+						const result = message.data as TestResult;
 						setResults(prev => {
 							const newResults = [...prev];
 							newResults[result.testCaseIndex] = result;
