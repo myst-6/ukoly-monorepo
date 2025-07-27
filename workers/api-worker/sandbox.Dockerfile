@@ -1,5 +1,7 @@
 # Base image with all required tools
-FROM --platform=linux/arm64 docker.io/cloudflare/sandbox:0.1.3
+# If running in dev on macbook, use the following line
+# FROM --platform=linux/arm64 docker.io/cloudflare/sandbox:0.1.3
+FROM docker.io/cloudflare/sandbox:0.1.3
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
