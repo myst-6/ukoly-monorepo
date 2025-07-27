@@ -9,24 +9,31 @@ ulimit -v "$MEMORY_LIMIT_KB"
 STDOUT_FILE=$(mktemp)
 TIME_FILE=$(mktemp)
 
-# Run with timeout and capture output and resource usage
-timeout --preserve-status --kill-after=1 "$TIME_LIMIT" /usr/bin/time -f "%e %M" -o "$TIME_FILE" \
-  bash -c "$COMMAND" > "$STDOUT_FILE"
+# Capture start time in milliseconds
+START_TIME=$(date +%s%3N)
+
+# Use time to wrap the timeout command (reverse of before)
+/usr/bin/time -f "%M" -o "$TIME_FILE" timeout --preserve-status --kill-after=1 "$TIME_LIMIT" bash -c "$COMMAND" > "$STDOUT_FILE" 2>/dev/null
 STATUS=$?
+
+# Capture end time in milliseconds
+END_TIME=$(date +%s%3N)
+
+# Calculate execution time
+EXEC_TIME_MS=$((END_TIME - START_TIME))
 
 # Output program stdout
 cat "$STDOUT_FILE"
 
-# Parse execution time and memory usage
-read TIME_S MEM_KB < "$TIME_FILE"
-TIME_MS=$(awk "BEGIN {printf \"%.0f\", $TIME_S * 1000}")
+# Get memory usage from time command
+MEM_KB=$(tail -1 "$TIME_FILE" 2>/dev/null || echo "0")
 
 # Clean up
 rm -f "$STDOUT_FILE" "$TIME_FILE"
 
 # Print time/memory stats to stdout
-echo "${TIME_MS}"
-echo "${MEM_KB}"
+echo "$EXEC_TIME_MS"  # Time in MS (actual measurement)
+echo "$MEM_KB"        # Memory in KB from time command
 
 # Exit cleanly with reason
 exit "$STATUS"

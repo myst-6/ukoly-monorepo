@@ -15,7 +15,7 @@ interface ExecuteRequest {
 	language: "javascript" | "python" | "c" | "cpp" | "rust" | "java";
 	testCases: Array<{
 		stdin: string;
-		timeLimit: number;
+		timeLimitMs: number;
 		memoryLimit: number;
 	}>;
 }
@@ -344,7 +344,7 @@ export default {
 
 	async executeCodeSequential(
 		code: string,
-		testCases: Array<{ stdin: string; timeLimit: number; memoryLimit: number }>,
+		testCases: Array<{ stdin: string; timeLimitMs: number; memoryLimit: number }>,
 		languageConfig: LanguageConfig,
 		env: Env,
 	): Promise<ExecutionResult[]> {
@@ -417,7 +417,7 @@ export default {
 					}
 
 					// Execute with monitoring
-					const monitorCommand = `/usr/local/bin/monitor.sh ${testCase.timeLimit} ${testCase.memoryLimit} "${languageConfig.executeCommand}${stdinFile}"`;
+					const monitorCommand = `/usr/local/bin/monitor.sh ${testCase.timeLimitMs / 1000} ${testCase.memoryLimit} "${languageConfig.executeCommand}${stdinFile}"`;
 					const result = await sandbox.exec(monitorCommand);
 
 					const outputLines = (result.stdout || "").trim().split("\n");
@@ -482,7 +482,7 @@ export default {
 
 	async executeCodeStreaming(
 		code: string,
-		testCases: Array<{ stdin: string; timeLimit: number; memoryLimit: number }>,
+		testCases: Array<{ stdin: string; timeLimitMs: number; memoryLimit: number }>,
 		languageConfig: LanguageConfig,
 		env: Env,
 		webSocket: WebSocket
@@ -544,10 +544,11 @@ export default {
 					}
 
 					// Execute with monitoring
-					const monitorCommand = `/usr/local/bin/monitor.sh ${testCase.timeLimit} ${testCase.memoryLimit} "${languageConfig.executeCommand}${stdinFile}"`;
+					const monitorCommand = `/usr/local/bin/monitor.sh ${testCase.timeLimitMs / 1000} ${testCase.memoryLimit} "${languageConfig.executeCommand}${stdinFile}"`;
 					const result = await sandbox.exec(monitorCommand);
 
 					const outputLines = (result.stdout || "").trim().split("\n");
+					console.log("outputLines", outputLines);
 					const memoryKB = outputLines.pop();
 					const timeMS = outputLines.pop();
 					const programOutput = outputLines.join("\n");
@@ -559,8 +560,8 @@ export default {
 						exitCode: result.exitCode || 0,
 						memoryKB: parseInt(memoryKB || "0"),
 						timeMS: parseInt(timeMS || "0"),
-						timedOut: result.exitCode === 124,
-						memoryExceeded: result.exitCode === 137,
+						timedOut: result.exitCode === 143,
+						memoryExceeded: result.exitCode === 134,
 					};
 
 					// Stream the result immediately
