@@ -49,17 +49,18 @@ A programming problems platform built with the Cloudflare ecosystem, featuring s
 
 ### Sandbox Architecture
 - **Custom Dockerfile**: Pre-installed compilation tools and monitoring
-- **Parallel Execution**: One sandbox per test case for maximum speed
+- **Sequential Execution**: One sandbox per request, test cases run sequentially for reliability
 - **Memory Monitoring**: Custom script with 5ms intervals via `/proc/[pid]/status`
 - **Time Limits**: Maximum 5 seconds per test case
 - **Memory Limits**: Configurable per test case
 - **Early Termination**: Kills processes that exceed limits
-- **Container Limits**: Maximum 25 concurrent containers (Cloudflare Workers limitation)
+- **Container Limits**: Uses only 1 container per request (vs 25 max concurrent)
 
-### Performance Optimization Opportunities
-- **Execution Pooling**: Consider grouping test cases into batches of 5 per container to reduce container usage and avoid hitting the 25 concurrent container limit
-- **Container Reuse**: Pool containers for sequential execution when parallel execution isn't critical
-- **Smart Batching**: Balance between execution speed (parallel) and resource limits (pooled)
+### Architecture Benefits
+- **Reliability**: Sequential execution is more stable than parallel
+- **Resource Efficiency**: Uses 1 container instead of N containers per request
+- **Compilation Optimization**: Compile once, run multiple test cases
+- **Reduced Complexity**: Simpler error handling and debugging
 
 ### Implementation Details
 
@@ -97,9 +98,7 @@ const LANGUAGE_CONFIG = {
   javascript: { command: 'node -e', extension: '.js' },
   python: { command: 'python3 -c', extension: '.py' },
   c: { compile: 'gcc -o', run: './', extension: '.c' },
-  cpp: { compile: 'g++ -o', run: './', extension: '.cpp' },
-  rust: { compile: 'rustc -o', run: './', extension: '.rs' },
-  java: { compile: 'javac', run: 'java -cp .', extension: '.java' }
+  cpp: { compile: 'g++ -o', run: './', extension: '.cpp' }
 };
 ```
 
@@ -108,24 +107,23 @@ const LANGUAGE_CONFIG = {
 - **Python**: Python 3 runtime
 - **C**: GCC compiler
 - **C++**: G++ compiler
-- **Rust**: Rustc compiler
-- **Java**: OpenJDK 17
 
 ### Execution Flow
 1. User submits code + language + test cases
 2. API validates origin and secret token
 3. Rate limiter checks IP limits (5 batches/minute)
-4. For compiled languages: compile once per sandbox
-5. Execute each test case in parallel sandbox
-6. Monitor memory/time usage with custom script
-7. Return results with execution metrics
+4. Create single sandbox for all test cases
+5. For compiled languages: compile once in sandbox
+6. Execute each test case sequentially in same sandbox
+7. Monitor memory/time usage with custom script for each execution
+8. Return results with execution metrics
 
 ### API Endpoint Specification
 ```typescript
 // POST /api/execute
 interface ExecuteRequest {
   code: string;
-  language: 'javascript' | 'python' | 'c' | 'cpp' | 'rust' | 'java';
+  language: 'javascript' | 'python' | 'c' | 'cpp';
   testCases: Array<{
     stdin: string;
     timeLimit: number; // milliseconds
@@ -405,11 +403,12 @@ pnpm --filter auth-worker dev
 - **D1**: SQL database with edge replication
 - **Integrated Security**: Built-in DDoS protection and security
 
-### Why Parallel Execution?
-- **Speed**: 20x faster than sequential execution
-- **Fault Isolation**: One hanging test doesn't affect others
-- **Resource Efficiency**: Better CPU utilization
-- **User Experience**: Faster feedback for users
+### Why Sequential Execution?
+- **Reliability**: More stable than parallel execution (fewer race conditions)
+- **Resource Efficiency**: Uses 1 container instead of N containers per request
+- **Compilation Optimization**: Compile once, execute multiple test cases
+- **Container Limits**: Avoids hitting Cloudflare's 25 concurrent container limit
+- **Simplified Debugging**: Easier error tracking and monitoring
 
 ### Why Custom Memory Monitoring?
 - **Accuracy**: Real-time memory usage tracking

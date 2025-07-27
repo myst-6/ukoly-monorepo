@@ -1,27 +1,21 @@
 # Base image with all required tools
-FROM docker.io/cloudflare/sandbox:0.1.3
+FROM --platform=linux/arm64 docker.io/cloudflare/sandbox:0.1.3
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies and monitoring tools
-RUN apt-get update && apt-get install -y \
-    # Compilation tools
-    gcc \
-    g++ \
-    python3 \
-    python3-pip \
-    nodejs \
-    # Monitoring tools
-    time \
-    procps \
-    bc \
-    # Utilities
-    curl \
-    wget \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && find /usr -name "*.a" -delete
+RUN apt-get update
+RUN apt-get install -y gcc
+RUN apt-get install -y g++
+RUN apt-get install -y python3
+RUN apt-get install -y python3-pip
+RUN apt-get install -y nodejs
+RUN apt-get install -y coreutils
+RUN apt-get install -y time
+RUN apt-get install -y procps
+RUN apt-get install -y bc
+RUN apt-get clean
 
 # Create monitoring script
 COPY monitor.sh /usr/local/bin/monitor.sh
