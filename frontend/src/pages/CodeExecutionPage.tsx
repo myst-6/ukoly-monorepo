@@ -169,7 +169,7 @@ export default function CodeExecutionPage() {
 
 		try {
 			const widgetId = window.turnstile.render('#turnstile-container', {
-				sitekey: import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA', // Test key for development
+				sitekey: import.meta.env.VITE_TURNSTILE_SITE_KEY,
 				callback: (token: string) => {
 					setTurnstileState(prev => ({
 						...prev,
@@ -307,7 +307,7 @@ export default function CodeExecutionPage() {
 			
 			// Create WebSocket connection
 			const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-			const wsUrl = `${wsProtocol}//${import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || 'localhost:8787'}/api/execute-stream`;
+			const wsUrl = `${wsProtocol}//${import.meta.env.VITE_API_URL.replace(/^https?:\/\//, '')}/api/execute-stream`;
 			
 			const ws = new WebSocket(wsUrl);
 			wsRef.current = ws;

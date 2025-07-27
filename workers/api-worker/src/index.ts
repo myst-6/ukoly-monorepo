@@ -45,6 +45,7 @@ interface LanguageConfig {
 	compileCommand?: string;
 	executeCommand: string;
 	setupStdin?: (stdin: string) => string; // Function to setup stdin handling
+	warmupProgram: string; // Simple program to warm up the language runtime
 }
 
 const LANGUAGE_CONFIG: Record<string, LanguageConfig> = {
@@ -52,6 +53,12 @@ const LANGUAGE_CONFIG: Record<string, LanguageConfig> = {
 		extension: ".js",
 		isCompiled: false,
 		executeCommand: "node /app/code.js",
+		warmupProgram: `// Warmup JavaScript runtime
+const start = Date.now();
+const arr = Array.from({length: 1000}, (_, i) => i);
+const sum = arr.reduce((a, b) => a + b, 0);
+const elapsed = Date.now() - start;
+`,
 		setupStdin: (stdin: string) => {
 			// Base64 encode the stdin to avoid escaping issues
 			const encodedStdin = btoa(stdin);
@@ -68,17 +75,54 @@ const input = (lines => () => lines.pop() || "")(atob("${encodedStdin}").split("
 		isCompiled: true,
 		compileCommand: "g++ -std=c++17 -O2 -o /app/executable /app/code.cpp",
 		executeCommand: "/app/executable",
+		warmupProgram: `// Warmup C++ runtime
+#include <iostream>
+#include <vector>
+#include <numeric>
+#include <chrono>
+
+int main() {
+    auto start = std::chrono::high_resolution_clock::now();
+    std::vector<int> arr(1000);
+    std::iota(arr.begin(), arr.end(), 0);
+    int sum = std::accumulate(arr.begin(), arr.end(), 0);
+    auto end = std::chrono::high_resolution_clock::now();
+    return 0;
+}`,
 	},
 	c: {
 		extension: ".c",
 		isCompiled: true,
 		compileCommand: "gcc -std=c11 -O2 -o /app/executable /app/code.c",
 		executeCommand: "/app/executable",
+		warmupProgram: `// Warmup C runtime
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+int main() {
+    clock_t start = clock();
+    int sum = 0;
+    for (int i = 0; i < 1000; i++) {
+        sum += i;
+    }
+    clock_t end = clock();
+    return 0;
+}`,
 	},
 	python: {
 		extension: ".py",
 		isCompiled: false,
 		executeCommand: "python3 /app/code.py",
+		warmupProgram: `# Warmup Python runtime
+import time
+import sys
+
+start = time.time()
+arr = list(range(1000))
+total = sum(arr)
+elapsed = time.time() - start
+`,
 		setupStdin: (stdin: string) => {
 			// Base64 encode the stdin to avoid escaping issues
 			const encodedStdin = btoa(stdin);
@@ -107,12 +151,32 @@ def input():
 		isCompiled: true,
 		compileCommand: "rustc -O -o /app/executable /app/code.rs",
 		executeCommand: "/app/executable",
+		warmupProgram: `// Warmup Rust runtime
+use std::time::Instant;
+
+fn main() {
+    let start = Instant::now();
+    let arr: Vec<i32> = (0..1000).collect();
+    let sum: i32 = arr.iter().sum();
+    let elapsed = start.elapsed();
+}`,
 	},
 	java: {
 		extension: ".java",
 		isCompiled: true,
 		compileCommand: "javac -d /app /app/Main.java",
 		executeCommand: "java -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -cp /app Main",
+		warmupProgram: `// Warmup Java runtime
+import java.util.stream.IntStream;
+
+public class Main {
+    public static void main(String[] args) {
+        long start = System.nanoTime();
+        int[] arr = IntStream.range(0, 1000).toArray();
+        int sum = IntStream.of(arr).sum();
+        long elapsed = System.nanoTime() - start;
+    }
+}`,
 	},
 };
 
@@ -126,6 +190,63 @@ interface TurnstileVerificationResult {
 }
 
 export default {
+	async warmupContainer(sandbox: DurableObjectStub<Sandbox<unknown>>, languageConfig: LanguageConfig): Promise<void> {
+		console.log("warming up container with", languageConfig.extension, "program");
+		
+		try {
+			// Write warmup program
+			const warmupFileName = languageConfig.extension === ".java" 
+				? "/app/WarmupMain.java" 
+				: `/app/warmup${languageConfig.extension}`;
+			
+			let warmupCode = languageConfig.warmupProgram;
+			if (languageConfig.extension === ".java" && !warmupCode.includes("class Main")) {
+				// Java warmup already has Main class, just write it directly
+				warmupCode = languageConfig.warmupProgram.replace("public class Main", "public class WarmupMain");
+			}
+			
+			await sandbox.writeFile(warmupFileName, warmupCode);
+
+			// Compile warmup if necessary
+			if (languageConfig.isCompiled && languageConfig.compileCommand) {
+				let warmupCompileCommand = languageConfig.compileCommand;
+				if (languageConfig.extension === ".java") {
+					warmupCompileCommand = "javac -d /app /app/WarmupMain.java";
+				} else {
+					// Replace input and output file paths for warmup
+					warmupCompileCommand = warmupCompileCommand.replace("/app/code", "/app/warmup");
+					warmupCompileCommand = warmupCompileCommand.replace("/app/executable", "/app/warmup_executable");
+				}
+				
+				console.log("compiling warmup program");
+				const compileResult = await sandbox.exec(warmupCompileCommand);
+				if (compileResult.exitCode !== 0) {
+					console.warn("Warmup compilation failed, but continuing:", compileResult.stderr);
+					return; // Don't fail if warmup doesn't work
+				}
+			}
+
+			// Execute warmup
+			let warmupExecuteCommand = languageConfig.executeCommand;
+			if (languageConfig.extension === ".java") {
+				warmupExecuteCommand = "java -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -cp /app WarmupMain";
+			} else if (languageConfig.isCompiled) {
+				warmupExecuteCommand = warmupExecuteCommand.replace("/app/executable", "/app/warmup_executable");
+			} else {
+				warmupExecuteCommand = warmupExecuteCommand.replace("/app/code", "/app/warmup");
+			}
+			
+			console.log("executing warmup program");
+			const warmupResult = await sandbox.exec(warmupExecuteCommand);
+			if (warmupResult.exitCode !== 0) {
+				console.warn("Warmup execution failed, but continuing:", warmupResult.stderr);
+			} else {
+				console.log("warmup completed successfully");
+			}
+		} catch (error) {
+			console.warn("Warmup failed, but continuing:", error);
+		}
+	},
 	async fetch(request: Request, env: Env): Promise<Response> {
 		// CORS headers
 		const corsHeaders = {
@@ -433,7 +554,7 @@ export default {
 
 		try {
 			console.log("starting sequential execution on sandbox", sandboxId);
-			await sandbox.exec("echo 'Hello, world!'"); // allow container to start
+			await this.warmupContainer(sandbox, languageConfig);
 
 			// Write the code file once (compilation will happen once)
 			const fileName =
@@ -571,7 +692,7 @@ export default {
 
 		try {
 			console.log("starting streaming execution on sandbox", sandboxId);
-			await sandbox.exec("echo 'Hello, world!'");
+			await this.warmupContainer(sandbox, languageConfig);
 
 			// Write the code file once
 			const fileName =
