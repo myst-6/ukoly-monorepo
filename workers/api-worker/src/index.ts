@@ -1,255 +1,230 @@
-import type {
-	ExecutionInput,
-	ExecutionResult,
-	Language,
-	LanguageConfig,
-} from "./execution-sandbox";
-import {
-	ExecutionSandbox,
-	LANGUAGE_CONFIG,
-	SandboxRuntime,
-} from "./execution-sandbox";
 import { getSandbox } from "@cloudflare/sandbox";
+import type {
+  ExecutionInput,
+  ExecutionResult,
+  Language,
+  LanguageConfig,
+} from "./execution-sandbox";
+import { ExecutionSandbox, LANGUAGE_CONFIG, SandboxRuntime } from "./execution-sandbox";
+import { checkRateLimit, getClientIP, verifyTurnstileToken } from "./protection";
 import { RateLimiter } from "./rate-limiter";
-import {
-	checkRateLimit,
-	getClientIP,
-	verifyTurnstileToken,
-} from "./protection";
 
 export { RateLimiter, ExecutionSandbox };
 
 interface ExecuteRequest {
-	code: string;
-	language: Language;
-	testCases: Array<{
-		stdin: string;
-		timeLimitMs: number;
-		memoryLimit: number;
-	}>;
-	turnstileToken?: string;
+  code: string;
+  language: Language;
+  testCases: Array<{
+    stdin: string;
+    timeLimitMs: number;
+    memoryLimit: number;
+  }>;
+  turnstileToken?: string;
 }
 
 type TestResult = ExecutionResult & { testCaseIndex: number };
 
 type WebSocketMessage = {
-	type: "result" | "error" | "complete" | "compilation_error";
-	data?: TestResult | string;
-	totalTestCases?: number;
+  type: "result" | "error" | "complete" | "compilation_error";
+  data?: TestResult | string;
+  totalTestCases?: number;
 };
 
 export default {
-	async fetch(request: Request, env: Env): Promise<Response> {
-		const corsHeaders = {
-			"Access-Control-Allow-Origin": "*",
-			"Access-Control-Allow-Methods": "POST, OPTIONS, GET",
-			"Access-Control-Allow-Headers":
-				"Content-Type, Upgrade, Connection, Sec-WebSocket-Key, Sec-WebSocket-Version, Sec-WebSocket-Protocol",
-		};
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+      "Access-Control-Allow-Headers":
+        "Content-Type, Upgrade, Connection, Sec-WebSocket-Key, Sec-WebSocket-Version, Sec-WebSocket-Protocol",
+    };
 
-		if (request.method === "OPTIONS") {
-			return new Response(null, { headers: corsHeaders });
-		}
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
+    }
 
-		const url = new URL(request.url);
+    const url = new URL(request.url);
 
-		const origin = request.headers.get("Origin");
-		const allowedOrigins = [
-			"http://localhost:5173",
-			"https://ukoly-monorepo.mborishall.workers.dev", // for production
-		];
+    const origin = request.headers.get("Origin");
+    const allowedOrigins = [
+      "http://localhost:5173",
+      "https://ukoly-monorepo.mborishall.workers.dev", // for production
+    ];
 
-		if (!allowedOrigins.includes(origin || "")) {
-			return new Response("Forbidden", {
-				status: 403,
-				headers: corsHeaders,
-			});
-		}
+    if (!allowedOrigins.includes(origin || "")) {
+      return new Response("Forbidden", {
+        status: 403,
+        headers: corsHeaders,
+      });
+    }
 
-		if (url.pathname === "/api/execute-stream") {
-			const upgradeHeader = request.headers.get("Upgrade");
-			if (upgradeHeader !== "websocket") {
-				return new Response("Expected Upgrade: websocket", { status: 426 });
-			}
+    if (url.pathname === "/api/execute-stream") {
+      const upgradeHeader = request.headers.get("Upgrade");
+      if (upgradeHeader !== "websocket") {
+        return new Response("Expected Upgrade: websocket", { status: 426 });
+      }
 
-			const webSocketPair = new WebSocketPair();
-			const [client, server] = Object.values(webSocketPair);
+      const webSocketPair = new WebSocketPair();
+      const [client, server] = Object.values(webSocketPair);
 
-			server.accept();
-			this.handleWebSocketConnection(await getClientIP(request), server, env);
+      server.accept();
+      this.handleWebSocketConnection(await getClientIP(request), server, env);
 
-			return new Response(null, {
-				status: 101,
-				webSocket: client,
-			});
-		}
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+      });
+    }
 
-		return new Response("Not found", {
-			status: 404,
-			headers: corsHeaders,
-		});
-	},
+    return new Response("Not found", {
+      status: 404,
+      headers: corsHeaders,
+    });
+  },
 
-	async handleWebSocketConnection(
-		clientIP: string,
-		webSocket: WebSocket,
-		env: Env,
-	) {
-		webSocket.addEventListener("message", async (event) => {
-			try {
-				const data = JSON.parse(event.data as string) as ExecuteRequest;
+  async handleWebSocketConnection(clientIP: string, webSocket: WebSocket, env: Env) {
+    webSocket.addEventListener("message", async (event) => {
+      try {
+        const data = JSON.parse(event.data as string) as ExecuteRequest;
 
-				if (!data.code || !data.language || !data.testCases) {
-					webSocket.send(
-						JSON.stringify({
-							type: "error",
-							data: "Invalid request: missing required fields",
-						} as WebSocketMessage),
-					);
-					return;
-				}
+        if (!data.code || !data.language || !data.testCases) {
+          webSocket.send(
+            JSON.stringify({
+              type: "error",
+              data: "Invalid request: missing required fields",
+            } as WebSocketMessage),
+          );
+          return;
+        }
 
-				if (!data.turnstileToken) {
-					webSocket.send(
-						JSON.stringify({
-							type: "error",
-							data: "Security verification required. Please complete the Turnstile challenge.",
-						} as WebSocketMessage),
-					);
-					return;
-				}
+        if (!data.turnstileToken) {
+          webSocket.send(
+            JSON.stringify({
+              type: "error",
+              data: "Security verification required. Please complete the Turnstile challenge.",
+            } as WebSocketMessage),
+          );
+          return;
+        }
 
-				const turnstileResult = await verifyTurnstileToken(
-					clientIP,
-					data.turnstileToken,
-					env,
-				);
+        const turnstileResult = await verifyTurnstileToken(clientIP, data.turnstileToken, env);
 
-				if (!turnstileResult.success) {
-					webSocket.send(
-						JSON.stringify({
-							type: "error",
-							data: `Security verification failed: ${turnstileResult["error-codes"]?.join(", ") || "Invalid token"}`,
-						} as WebSocketMessage),
-					);
-					return;
-				}
+        if (!turnstileResult.success) {
+          webSocket.send(
+            JSON.stringify({
+              type: "error",
+              data: `Security verification failed: ${turnstileResult["error-codes"]?.join(", ") || "Invalid token"}`,
+            } as WebSocketMessage),
+          );
+          return;
+        }
 
-				const rateLimitResponse = await checkRateLimit(clientIP, env);
+        const rateLimitResponse = await checkRateLimit(clientIP, env);
 
-				if (rateLimitResponse.status !== 200) {
-					webSocket.send(
-						JSON.stringify({
-							type: "error",
-							data: "Rate limit exceeded",
-						} satisfies WebSocketMessage),
-					);
-					return;
-				}
+        if (rateLimitResponse.status !== 200) {
+          webSocket.send(
+            JSON.stringify({
+              type: "error",
+              data: "Rate limit exceeded",
+            } satisfies WebSocketMessage),
+          );
+          return;
+        }
 
-				if (data.testCases.length > 20) {
-					webSocket.send(
-						JSON.stringify({
-							type: "error",
-							data: `Too many test cases. Maximum 20 allowed, got ${data.testCases.length}`,
-						} satisfies WebSocketMessage),
-					);
-					return;
-				}
+        if (data.testCases.length > 20) {
+          webSocket.send(
+            JSON.stringify({
+              type: "error",
+              data: `Too many test cases. Maximum 20 allowed, got ${data.testCases.length}`,
+            } satisfies WebSocketMessage),
+          );
+          return;
+        }
 
-				const languageConfig = LANGUAGE_CONFIG[data.language];
-				if (!languageConfig) {
-					webSocket.send(
-						JSON.stringify({
-							type: "error",
-							data: "Language not supported",
-						} satisfies WebSocketMessage),
-					);
-					return;
-				}
+        const languageConfig = LANGUAGE_CONFIG[data.language];
+        if (!languageConfig) {
+          webSocket.send(
+            JSON.stringify({
+              type: "error",
+              data: "Language not supported",
+            } satisfies WebSocketMessage),
+          );
+          return;
+        }
 
-				await this.executeCodeStreaming(
-					data.code,
-					data.testCases,
-					languageConfig,
-					env,
-					webSocket,
-				);
-			} catch (error) {
-				console.error("WebSocket message error:", error);
-				webSocket.send(
-					JSON.stringify({
-						type: "error",
-						data: error instanceof Error ? error.message : "Unknown error",
-					} satisfies WebSocketMessage),
-				);
-			}
-		});
-	},
+        await this.executeCodeStreaming(data.code, data.testCases, languageConfig, env, webSocket);
+      } catch (error) {
+        console.error("WebSocket message error:", error);
+        webSocket.send(
+          JSON.stringify({
+            type: "error",
+            data: error instanceof Error ? error.message : "Unknown error",
+          } satisfies WebSocketMessage),
+        );
+      }
+    });
+  },
 
-	async executeCodeStreaming(
-		code: string,
-		testCases: Array<ExecutionInput>,
-		languageConfig: LanguageConfig,
-		env: Env,
-		webSocket: WebSocket,
-	): Promise<void> {
-		const sandboxId = `exec-stream-${Date.now()}-${Math.random()
-			.toString(36)
-			.substring(2, 9)}`;
-		const sandbox = getSandbox(env.ExecutionSandbox, sandboxId);
-		const runtime = new SandboxRuntime(sandbox, languageConfig, code);
+  async executeCodeStreaming(
+    code: string,
+    testCases: Array<ExecutionInput>,
+    languageConfig: LanguageConfig,
+    env: Env,
+    webSocket: WebSocket,
+  ): Promise<void> {
+    const sandboxId = `exec-stream-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const sandbox = getSandbox(env.ExecutionSandbox, sandboxId);
+    const runtime = new SandboxRuntime(sandbox, languageConfig, code);
 
-		for (let i = 0; i < testCases.length; i++) {
-			const testCase = testCases[i];
+    for (let i = 0; i < testCases.length; i++) {
+      const testCase = testCases[i];
 
-			try {
-				const executionResult = await runtime.run(testCase);
+      try {
+        const executionResult = await runtime.run(testCase);
 
-				webSocket.send(
-					JSON.stringify({
-						type: "result",
-						data: {
-							...executionResult,
-							testCaseIndex: i,
-						},
-						totalTestCases: testCases.length,
-					} satisfies WebSocketMessage),
-				);
-			} catch (testError) {
-				console.error(`Error executing test case ${i}:`, testError);
+        webSocket.send(
+          JSON.stringify({
+            type: "result",
+            data: {
+              ...executionResult,
+              testCaseIndex: i,
+            },
+            totalTestCases: testCases.length,
+          } satisfies WebSocketMessage),
+        );
+      } catch (testError) {
+        console.error(`Error executing test case ${i}:`, testError);
 
-				const errorResult: ExecutionResult = {
-					stdout: "",
-					stderr: "",
-					exitCode: 1,
-					memoryKB: 0,
-					timeMS: 0,
-					timedOut: false,
-					memoryExceeded: false,
-					error:
-						testError instanceof Error ? testError.message : "Unknown error",
-				};
+        const errorResult: ExecutionResult = {
+          stdout: "",
+          stderr: "",
+          exitCode: 1,
+          memoryKB: 0,
+          timeMS: 0,
+          timedOut: false,
+          memoryExceeded: false,
+          error: testError instanceof Error ? testError.message : "Unknown error",
+        };
 
-				webSocket.send(
-					JSON.stringify({
-						type: "result",
-						data: {
-							...errorResult,
-							testCaseIndex: i,
-						},
-						totalTestCases: testCases.length,
-					} satisfies WebSocketMessage),
-				);
-			}
-		}
+        webSocket.send(
+          JSON.stringify({
+            type: "result",
+            data: {
+              ...errorResult,
+              testCaseIndex: i,
+            },
+            totalTestCases: testCases.length,
+          } satisfies WebSocketMessage),
+        );
+      }
+    }
 
-		webSocket.send(
-			JSON.stringify({
-				type: "complete",
-			} satisfies WebSocketMessage),
-		);
+    webSocket.send(
+      JSON.stringify({
+        type: "complete",
+      } satisfies WebSocketMessage),
+    );
 
-		await sandbox.destroy();
-	},
+    await sandbox.destroy();
+  },
 };

@@ -24,9 +24,7 @@ export class RateLimiter {
     let requests = (await this.state.storage.get<number[]>("requests")) || [];
 
     // Remove old requests outside the window
-    requests = requests.filter(
-      (timestamp: number) => now - timestamp < windowMs
-    );
+    requests = requests.filter((timestamp: number) => now - timestamp < windowMs);
 
     // Check if we're at the limit
     if (requests.length >= maxRequests) {

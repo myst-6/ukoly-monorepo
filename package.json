@@ -3,10 +3,7 @@
   "version": "1.0.0",
   "description": "Programming problems platform with Cloudflare ecosystem",
   "private": true,
-  "workspaces": [
-    "frontend",
-    "workers/*"
-  ],
+  "workspaces": ["frontend", "workers/*"],
   "scripts": {
     "dev": "concurrently \"pnpm --filter frontend dev\" \"pnpm --filter api-worker dev\"",
     "dev:frontend": "pnpm --filter frontend dev",
@@ -17,19 +14,17 @@
     "deploy": "pnpm run deploy:frontend && pnpm run deploy:api",
     "deploy:frontend": "pnpm --filter frontend run deploy",
     "deploy:api": "pnpm --filter api-worker run deploy",
+    "lint": "biome check .",
+    "lint:fix": "biome check . --fix --unsafe",
     "install:all": "pnpm install",
     "clean": "pnpm -r exec rm -rf node_modules && rm -rf node_modules"
   },
-  "keywords": [
-    "programming",
-    "problems",
-    "cloudflare",
-    "react"
-  ],
+  "keywords": ["programming", "problems", "cloudflare", "react"],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.11.0",
   "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
     "concurrently": "^8.2.2",
     "typescript": "^5.3.3"
   }

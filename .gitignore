@@ -1,5 +1,4 @@
 **/node_modules
-**/.wrangler
 **/out
 **/*.tsbuildinfo
 workers/**/.env*
