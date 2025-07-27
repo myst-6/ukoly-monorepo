@@ -10,7 +10,7 @@
       "class_name": "ExecutionSandbox",
       "image": "./sandbox.Dockerfile",
       "instance_type": "basic",
-      "max_instances": 100
+      "max_instances": 80
     }
   ],
   "durable_objects": {
