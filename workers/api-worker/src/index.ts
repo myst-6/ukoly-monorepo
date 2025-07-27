@@ -18,6 +18,7 @@ interface ExecuteRequest {
 		timeLimitMs: number;
 		memoryLimit: number;
 	}>;
+	turnstileToken?: string; // Add optional Turnstile token
 }
 
 interface ExecutionResult {
@@ -115,6 +116,15 @@ def input():
 	},
 };
 
+interface TurnstileVerificationResult {
+	success: boolean;
+	"error-codes"?: string[];
+	challenge_ts?: string;
+	hostname?: string;
+	action?: string;
+	cdata?: string;
+}
+
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		// CORS headers
@@ -174,12 +184,90 @@ export default {
 		});
 	},
 
+	async verifyTurnstileToken(token: string, env: Env, clientIP?: string): Promise<TurnstileVerificationResult> {
+		console.log("verifying turnstile token", env.ENVIRONMENT);
+		
+		// Skip verification in development environment
+		if (env.ENVIRONMENT === "development") {
+			return {
+				success: true,
+			};
+		}
+		
+		// Check if secret key is available
+		if (!env.TURNSTILE_SECRET_KEY) {
+			console.error('TURNSTILE_SECRET_KEY not found in environment');
+			return {
+				success: false,
+				"error-codes": ['missing-secret-key'],
+			};
+		}
+		
+		const formData = new FormData();
+		formData.append('secret', env.TURNSTILE_SECRET_KEY);
+		formData.append('response', token);
+		if (clientIP) {
+			formData.append('remoteip', clientIP);
+		}
+
+		try {
+			const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+				method: 'POST',
+				body: formData,
+			});
+
+			if (!response.ok) {
+				throw new Error(`Turnstile API request failed: ${response.statusText}`);
+			}
+
+			return await response.json() as TurnstileVerificationResult;
+		} catch (error) {
+			console.error('Turnstile verification error:', error);
+			return {
+				success: false,
+				"error-codes": ['network-error'],
+			};
+		}
+	},
+
 	async handleWebSocketConnection(webSocket: WebSocket, env: Env) {
 		webSocket.addEventListener("message", async (event) => {
 			try {
 				const data = JSON.parse(event.data as string) as ExecuteRequest;
 				
-				// Check rate limit
+				// Validate basic request structure
+				if (!data.code || !data.language || !data.testCases) {
+					webSocket.send(JSON.stringify({
+						type: 'error',
+						data: 'Invalid request: missing required fields'
+					} as WebSocketMessage));
+					return;
+				}
+
+				// Verify Turnstile token first
+				if (!data.turnstileToken) {
+					webSocket.send(JSON.stringify({
+						type: 'error',
+						data: 'Security verification required. Please complete the Turnstile challenge.'
+					} as WebSocketMessage));
+					return;
+				}
+
+				console.log('Verifying Turnstile token...');
+				const turnstileResult = await this.verifyTurnstileToken(data.turnstileToken, env);
+				
+				if (!turnstileResult.success) {
+					console.log('Turnstile verification failed:', turnstileResult["error-codes"]);
+					webSocket.send(JSON.stringify({
+						type: 'error',
+						data: `Security verification failed: ${turnstileResult["error-codes"]?.join(', ') || 'Invalid token'}`
+					} as WebSocketMessage));
+					return;
+				}
+
+				console.log('Turnstile verification successful');
+				
+				// Check rate limit (after Turnstile verification)
 				const clientIP = "websocket-user"; // WebSocket doesn't have IP easily accessible
 				const rateLimiterId = env.RATE_LIMITER.idFromName(clientIP);
 				const rateLimiter = env.RATE_LIMITER.get(rateLimiterId);
@@ -189,15 +277,6 @@ export default {
 					webSocket.send(JSON.stringify({
 						type: 'error',
 						data: 'Rate limit exceeded'
-					} as WebSocketMessage));
-					return;
-				}
-
-				// Validate request
-				if (!data.code || !data.language || !data.testCases) {
-					webSocket.send(JSON.stringify({
-						type: 'error',
-						data: 'Invalid request'
 					} as WebSocketMessage));
 					return;
 				}

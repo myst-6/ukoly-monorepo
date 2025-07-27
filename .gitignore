@@ -4,3 +4,4 @@
 **/*.tsbuildinfo
 **/.env*
 **/worker-configuration.d.ts
+**/*.vars

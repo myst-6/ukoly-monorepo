@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Editor from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,7 +8,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Play, Code, Settings, Square } from "lucide-react";
+import { Play, Code, Settings, Square, Shield } from "lucide-react";
 
 type Language = "javascript" | "python" | "c" | "cpp" | "rust" | "java";
 
@@ -41,6 +41,26 @@ interface ExecutionStatus {
 	currentTestCase: number;
 	totalTestCases: number;
 	isComplete: boolean;
+}
+
+interface TurnstileState {
+	isLoaded: boolean;
+	token: string | null;
+	isVerified: boolean;
+	error: string | null;
+}
+
+// Declare turnstile on window for TypeScript
+declare global {
+	interface Window {
+		turnstile?: {
+			render: (element: string, options: any) => string;
+			reset: (widgetId?: string) => void;
+			getResponse: (widgetId?: string) => string;
+			remove: (widgetId?: string) => void;
+		};
+		onTurnstileLoad?: () => void;
+	}
 }
 
 const LANGUAGE_TEMPLATES: Record<Language, string> = {
@@ -134,8 +154,111 @@ export default function CodeExecutionPage() {
 	});
 	const [compilationError, setCompilationError] = useState<string>("");
 	const [executionError, setExecutionError] = useState<string>("");
+	const [turnstileState, setTurnstileState] = useState<TurnstileState>({
+		isLoaded: false,
+		token: null,
+		isVerified: false,
+		error: null,
+	});
 	
 	const wsRef = useRef<WebSocket | null>(null);
+	const turnstileWidgetRef = useRef<string | null>(null);
+
+	const renderTurnstile = useCallback(() => {
+		if (!window.turnstile || turnstileWidgetRef.current) return;
+
+		try {
+			const widgetId = window.turnstile.render('#turnstile-container', {
+				sitekey: import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA', // Test key for development
+				callback: (token: string) => {
+					setTurnstileState(prev => ({
+						...prev,
+						token,
+						isVerified: true,
+						error: null,
+					}));
+				},
+				'error-callback': (error: string) => {
+					setTurnstileState(prev => ({
+						...prev,
+						token: null,
+						isVerified: false,
+						error: `Turnstile error: ${error}`,
+					}));
+				},
+				'expired-callback': () => {
+					setTurnstileState(prev => ({
+						...prev,
+						token: null,
+						isVerified: false,
+						error: 'Turnstile token expired. Please verify again.',
+					}));
+				},
+				theme: 'light',
+				size: 'normal',
+			});
+			
+			turnstileWidgetRef.current = widgetId;
+		} catch (error) {
+			console.error('Failed to render Turnstile:', error);
+			setTurnstileState(prev => ({
+				...prev,
+				error: 'Failed to load security verification',
+			}));
+		}
+	}, []);
+
+	// Add Turnstile script to page
+	useEffect(() => {
+		// Check if Turnstile is already loaded and available
+		if (window.turnstile) {
+			setTurnstileState(prev => ({ ...prev, isLoaded: true }));
+			renderTurnstile();
+			return;
+		}
+
+		// Check if script already exists
+		const existingScript = document.querySelector('script[src*="turnstile"]');
+		if (existingScript) {
+			// Script exists but callback might be missing, re-add it
+			window.onTurnstileLoad = () => {
+				setTurnstileState(prev => ({ ...prev, isLoaded: true }));
+				renderTurnstile();
+			};
+			// If turnstile is already available, call it directly
+			if (window.turnstile) {
+				window.onTurnstileLoad();
+			}
+			return;
+		}
+
+		// Define the global callback BEFORE loading the script
+		window.onTurnstileLoad = () => {
+			setTurnstileState(prev => ({ ...prev, isLoaded: true }));
+			renderTurnstile();
+		};
+
+		const script = document.createElement('script');
+		script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad';
+		script.async = true;
+		script.defer = true;
+
+		document.head.appendChild(script);
+
+		// No cleanup! Let the script and callback persist
+	}, [renderTurnstile]);
+
+	const resetTurnstile = useCallback(() => {
+		if (window.turnstile && turnstileWidgetRef.current) {
+			window.turnstile.reset(turnstileWidgetRef.current);
+			setTurnstileState(prev => ({
+				...prev,
+				token: null,
+				isVerified: false,
+				error: null,
+			}));
+		}
+	}, []);
 
 	const handleLanguageChange = (language: Language) => {
 		setSelectedLanguage(language);
@@ -162,6 +285,12 @@ export default function CodeExecutionPage() {
 	}, []);
 
 	const executeCode = async () => {
+		// Check Turnstile verification
+		if (!turnstileState.isVerified || !turnstileState.token) {
+			setExecutionError("Please complete the security verification before executing code.");
+			return;
+		}
+
 		// Reset state
 		setResults([]);
 		setCompilationError("");
@@ -185,11 +314,12 @@ export default function CodeExecutionPage() {
 
 			ws.onopen = () => {
 				console.log("WebSocket connected");
-				// Send execution request
+				// Send execution request with Turnstile token
 				ws.send(JSON.stringify({
 					code,
 					language: selectedLanguage,
 					testCases,
+					turnstileToken: turnstileState.token, // Include Turnstile token
 				}));
 			};
 
@@ -219,6 +349,8 @@ export default function CodeExecutionPage() {
 							isExecuting: false,
 							isComplete: true,
 						}));
+						// Reset Turnstile after use
+						resetTurnstile();
 						break;
 						
 					case 'error':
@@ -228,6 +360,8 @@ export default function CodeExecutionPage() {
 							isExecuting: false,
 							isComplete: true,
 						}));
+						// Reset Turnstile after use
+						resetTurnstile();
 						break;
 						
 					case 'complete':
@@ -236,6 +370,8 @@ export default function CodeExecutionPage() {
 							isExecuting: false,
 							isComplete: true,
 						}));
+						// Reset Turnstile after successful execution
+						resetTurnstile();
 						break;
 				}
 			};
@@ -247,6 +383,7 @@ export default function CodeExecutionPage() {
 					...prev,
 					isExecuting: false,
 				}));
+				resetTurnstile();
 			};
 
 			ws.onclose = () => {
@@ -265,6 +402,7 @@ export default function CodeExecutionPage() {
 				...prev,
 				isExecuting: false,
 			}));
+			resetTurnstile();
 		}
 	};
 
@@ -345,6 +483,43 @@ export default function CodeExecutionPage() {
 						/>
 					</div>
 
+					{/* Security Verification Section */}
+					<div className="space-y-3 p-4 border rounded-lg bg-slate-50">
+						<div className="flex items-center gap-2">
+							<Shield className="h-4 w-4" />
+							<span className="text-sm font-medium">Security Verification</span>
+						</div>
+						
+						{/* Turnstile Widget Container */}
+						<div id="turnstile-container" className="flex justify-center"></div>
+						
+						{/* Turnstile Status */}
+						{turnstileState.error && (
+							<div className="text-sm text-red-600 text-center">
+								{turnstileState.error}
+							</div>
+						)}
+						
+						{turnstileState.isVerified && (
+							<div className="text-sm text-green-600 text-center flex items-center justify-center gap-1">
+								<Shield className="h-3 w-3" />
+								Verification completed
+							</div>
+						)}
+						
+						{turnstileState.isLoaded && !turnstileState.isVerified && !turnstileState.error && (
+							<div className="text-sm text-gray-600 text-center">
+								Please complete the verification above
+							</div>
+						)}
+						
+						{!turnstileState.isLoaded && (
+							<div className="text-sm text-gray-600 text-center">
+								Loading security verification...
+							</div>
+						)}
+					</div>
+
 					{/* Execution Progress */}
 					{executionStatus.isExecuting && (
 						<div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -373,7 +548,7 @@ export default function CodeExecutionPage() {
 					<div className="flex gap-2">
 						<Button
 							onClick={executeCode}
-							disabled={executionStatus.isExecuting}
+							disabled={executionStatus.isExecuting || !turnstileState.isVerified}
 							className="flex-1"
 						>
 							<Play className="h-4 w-4 mr-2" />
