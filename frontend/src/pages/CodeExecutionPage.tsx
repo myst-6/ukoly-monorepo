@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,7 +8,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Play, Code, Settings } from "lucide-react";
+import { Play, Code, Settings, Square } from "lucide-react";
 
 type Language = "javascript" | "python" | "c" | "cpp" | "rust" | "java";
 
@@ -30,19 +30,24 @@ interface ExecutionResult {
 	error?: string;
 }
 
+interface WebSocketMessage {
+	type: 'result' | 'error' | 'complete' | 'compilation_error';
+	data?: ExecutionResult | string;
+	totalTestCases?: number;
+}
+
+interface ExecutionStatus {
+	isExecuting: boolean;
+	currentTestCase: number;
+	totalTestCases: number;
+	isComplete: boolean;
+}
+
 const LANGUAGE_TEMPLATES: Record<Language, string> = {
 	javascript: `const x = input();
 const y = input();
 
-const aX = Array(+x).fill(0);
-const aY = Array(+y).fill(0);
-
-let ans = 0;
-for (const _ of [...aX, ...aY]) {
-    ans += 1;
-}
-
-console.log(ans);`,
+console.log((+x) + (+y));`,
 
 	python: `x = int(input())
 y = int(input())
@@ -121,7 +126,16 @@ export default function CodeExecutionPage() {
 10000000
 80000000`);
 	const [results, setResults] = useState<ExecutionResult[]>([]);
-	const [isExecuting, setIsExecuting] = useState(false);
+	const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>({
+		isExecuting: false,
+		currentTestCase: 0,
+		totalTestCases: 0,
+		isComplete: false,
+	});
+	const [compilationError, setCompilationError] = useState<string>("");
+	const [executionError, setExecutionError] = useState<string>("");
+	
+	const wsRef = useRef<WebSocket | null>(null);
 
 	const handleLanguageChange = (language: Language) => {
 		setSelectedLanguage(language);
@@ -136,39 +150,121 @@ export default function CodeExecutionPage() {
 		}));
 	};
 
+	const stopExecution = useCallback(() => {
+		if (wsRef.current) {
+			wsRef.current.close();
+			wsRef.current = null;
+		}
+		setExecutionStatus(prev => ({
+			...prev,
+			isExecuting: false,
+		}));
+	}, []);
+
 	const executeCode = async () => {
-		setIsExecuting(true);
+		// Reset state
+		setResults([]);
+		setCompilationError("");
+		setExecutionError("");
+		setExecutionStatus({
+			isExecuting: true,
+			currentTestCase: 0,
+			totalTestCases: 0,
+			isComplete: false,
+		});
+
 		try {
 			const testCases = parseTestCases(testCasesInput);
+			
+			// Create WebSocket connection
+			const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+			const wsUrl = `${wsProtocol}//${import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || 'localhost:8787'}/api/execute-stream`;
+			
+			const ws = new WebSocket(wsUrl);
+			wsRef.current = ws;
 
-			const response = await fetch(
-				`${import.meta.env.VITE_API_URL || "http://localhost:8787"}/api/execute`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({
-						code,
-						language: selectedLanguage,
-						testCases,
-					}),
-				},
-			);
+			ws.onopen = () => {
+				console.log("WebSocket connected");
+				// Send execution request
+				ws.send(JSON.stringify({
+					code,
+					language: selectedLanguage,
+					testCases,
+				}));
+			};
 
-			if (response.ok) {
-				const data = await response.json();
-				setResults(data.results);
-			} else {
-				const errorText = await response.text();
-				console.error("Execution failed:", response.statusText, errorText);
-				setResults([]);
-			}
+			ws.onmessage = (event) => {
+				const message: WebSocketMessage = JSON.parse(event.data);
+				
+				switch (message.type) {
+					case 'result': {
+						const result = message.data as ExecutionResult;
+						setResults(prev => {
+							const newResults = [...prev];
+							newResults[result.testCaseIndex] = result;
+							return newResults;
+						});
+						setExecutionStatus(prev => ({
+							...prev,
+							currentTestCase: result.testCaseIndex + 1,
+							totalTestCases: message.totalTestCases || prev.totalTestCases,
+						}));
+						break;
+					}
+						
+					case 'compilation_error':
+						setCompilationError(message.data as string);
+						setExecutionStatus(prev => ({
+							...prev,
+							isExecuting: false,
+							isComplete: true,
+						}));
+						break;
+						
+					case 'error':
+						setExecutionError(message.data as string);
+						setExecutionStatus(prev => ({
+							...prev,
+							isExecuting: false,
+							isComplete: true,
+						}));
+						break;
+						
+					case 'complete':
+						setExecutionStatus(prev => ({
+							...prev,
+							isExecuting: false,
+							isComplete: true,
+						}));
+						break;
+				}
+			};
+
+			ws.onerror = (error) => {
+				console.error("WebSocket error:", error);
+				setExecutionError("Connection error occurred");
+				setExecutionStatus(prev => ({
+					...prev,
+					isExecuting: false,
+				}));
+			};
+
+			ws.onclose = () => {
+				console.log("WebSocket connection closed");
+				wsRef.current = null;
+				setExecutionStatus(prev => ({
+					...prev,
+					isExecuting: false,
+				}));
+			};
+
 		} catch (error) {
 			console.error("Error executing code:", error);
-			setResults([]);
-		} finally {
-			setIsExecuting(false);
+			setExecutionError(error instanceof Error ? error.message : "Unknown error");
+			setExecutionStatus(prev => ({
+				...prev,
+				isExecuting: false,
+			}));
 		}
 	};
 
@@ -194,6 +290,7 @@ export default function CodeExecutionPage() {
 							<Select
 								value={selectedLanguage}
 								onValueChange={handleLanguageChange}
+								disabled={executionStatus.isExecuting}
 							>
 								<SelectTrigger className="w-[180px]">
 									<SelectValue placeholder="Select language" />
@@ -225,6 +322,7 @@ export default function CodeExecutionPage() {
 								roundedSelection: false,
 								scrollBeyondLastLine: false,
 								automaticLayout: true,
+								readOnly: executionStatus.isExecuting,
 							}}
 						/>
 					</div>
@@ -241,85 +339,184 @@ export default function CodeExecutionPage() {
 							id="test-cases-input"
 							value={testCasesInput}
 							onChange={(e) => setTestCasesInput(e.target.value)}
-							className="w-full h-96 p-3 border rounded-lg resize-none font-mono text-sm"
+							disabled={executionStatus.isExecuting}
+							className="w-full h-96 p-3 border rounded-lg resize-none font-mono text-sm disabled:opacity-50"
 							placeholder="Enter test cases separated by ==="
 						/>
 					</div>
 
-					<Button
-						onClick={executeCode}
-						disabled={isExecuting}
-						className="w-full"
-					>
-						<Play className="h-4 w-4 mr-2" />
-						{isExecuting
-							? "Executing..."
-							: `Execute ${LANGUAGE_INFO[selectedLanguage].name} Code`}
-					</Button>
+					{/* Execution Progress */}
+					{executionStatus.isExecuting && (
+						<div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+							<div className="flex items-center justify-between">
+								<span className="text-sm font-medium text-blue-800">
+									Executing Test Cases...
+								</span>
+								<span className="text-sm text-blue-600">
+									{executionStatus.currentTestCase}/{executionStatus.totalTestCases || '?'}
+								</span>
+							</div>
+							{executionStatus.totalTestCases > 0 && (
+								<div className="w-full bg-blue-200 rounded-full h-2">
+									<div
+										className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+										style={{
+											width: `${(executionStatus.currentTestCase / executionStatus.totalTestCases) * 100}%`,
+										}}
+									/>
+								</div>
+							)}
+						</div>
+					)}
+
+					{/* Action Buttons */}
+					<div className="flex gap-2">
+						<Button
+							onClick={executeCode}
+							disabled={executionStatus.isExecuting}
+							className="flex-1"
+						>
+							<Play className="h-4 w-4 mr-2" />
+							{executionStatus.isExecuting
+								? "Executing..."
+								: `Execute ${LANGUAGE_INFO[selectedLanguage].name} Code`}
+						</Button>
+						
+						{executionStatus.isExecuting && (
+							<Button
+								onClick={stopExecution}
+								variant="destructive"
+								size="icon"
+							>
+								<Square className="h-4 w-4" />
+							</Button>
+						)}
+					</div>
 				</div>
 			</div>
 
-			{/* Results */}
-			{results.length > 0 && (
+			{/* Compilation Error */}
+			{compilationError && (
 				<div className="mt-8 space-y-4">
-					<h2 className="text-xl font-semibold">Execution Results</h2>
+					<h2 className="text-xl font-semibold text-red-600">Compilation Error</h2>
+					<div className="border border-red-200 rounded-lg p-4 bg-red-50">
+						<pre className="text-sm text-red-800 overflow-auto whitespace-pre-wrap">
+							{compilationError}
+						</pre>
+					</div>
+				</div>
+			)}
+
+			{/* Execution Error */}
+			{executionError && (
+				<div className="mt-8 space-y-4">
+					<h2 className="text-xl font-semibold text-red-600">Execution Error</h2>
+					<div className="border border-red-200 rounded-lg p-4 bg-red-50">
+						<p className="text-sm text-red-800">{executionError}</p>
+					</div>
+				</div>
+			)}
+
+			{/* Streaming Results */}
+			{(results.length > 0 || executionStatus.isExecuting) && (
+				<div className="mt-8 space-y-4">
+					<div className="flex items-center justify-between">
+						<h2 className="text-xl font-semibold">Execution Results</h2>
+						{executionStatus.isComplete && (
+							<span className="text-sm text-green-600 font-medium">
+								✓ All test cases completed
+							</span>
+						)}
+					</div>
 					<div className="space-y-4">
-						{results.map((result) => (
-							<div
-								key={result.testCaseIndex}
-								className="border rounded-lg p-4 bg-muted/50"
-							>
-								<div className="flex items-center gap-2 mb-2">
-									<span className="font-semibold">
-										Test Case {result.testCaseIndex + 1}
-									</span>
-									<span
-										className={`px-2 py-1 rounded text-xs font-medium ${
-											result.exitCode === 0 &&
-											!result.timedOut &&
-											!result.memoryExceeded
-												? "bg-green-100 text-green-800"
-												: "bg-red-100 text-red-800"
-										}`}
-									>
-										{result.exitCode === 0 &&
-										!result.timedOut &&
-										!result.memoryExceeded
-											? "PASSED"
-											: "FAILED"}
-									</span>
-									<span className="text-xs text-muted-foreground">
-										{result.timeMS}ms, {result.memoryKB}KB
-									</span>
+						{Array.from({ length: Math.max(results.length, executionStatus.totalTestCases || 0) }, (_, i) => {
+							const result = results[i];
+							const isExecuting = executionStatus.isExecuting && i === executionStatus.currentTestCase && !result;
+							const isPending = i >= executionStatus.currentTestCase && !result;
+
+							return (
+								<div
+									key={result?.testCaseIndex !== undefined ? `result-${result.testCaseIndex}` : `pending-${i}`}
+									className={`border rounded-lg p-4 transition-all duration-300 ${
+										result
+											? "bg-muted/50"
+											: isExecuting
+											? "bg-blue-50 border-blue-200"
+											: "bg-gray-50 border-gray-200"
+									}`}
+								>
+									<div className="flex items-center gap-2 mb-2">
+										<span className="font-semibold">
+											Test Case {i + 1}
+										</span>
+										{result && (
+											<span
+												className={`px-2 py-1 rounded text-xs font-medium ${
+													result.exitCode === 0 &&
+													!result.timedOut &&
+													!result.memoryExceeded
+														? "bg-green-100 text-green-800"
+														: "bg-red-100 text-red-800"
+												}`}
+											>
+												{result.exitCode === 0 &&
+												!result.timedOut &&
+												!result.memoryExceeded
+													? "PASSED"
+													: "FAILED"}
+											</span>
+										)}
+										{isExecuting && (
+											<span className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">
+												RUNNING...
+											</span>
+										)}
+										{isPending && !isExecuting && (
+											<span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">
+												PENDING
+											</span>
+										)}
+										{result && (
+											<span className="text-xs text-muted-foreground">
+												{result.timeMS}ms, {result.memoryKB}KB
+											</span>
+										)}
+									</div>
+
+									{result && result.stdout && (
+										<div className="mb-2">
+											<p className="text-sm font-medium">Output:</p>
+											<pre className="text-sm bg-background p-2 rounded border overflow-auto">
+												{result.stdout}
+											</pre>
+										</div>
+									)}
+
+									{result && result.stderr && (
+										<div className="mb-2">
+											<p className="text-sm font-medium text-red-600">Error:</p>
+											<pre className="text-sm bg-red-50 p-2 rounded border overflow-auto text-red-800">
+												{result.stderr}
+											</pre>
+										</div>
+									)}
+
+									{result && (result.timedOut || result.memoryExceeded || result.error) && (
+										<div className="text-sm text-red-600">
+											{result.timedOut && <p>⏰ Time limit exceeded</p>}
+											{result.memoryExceeded && <p>💾 Memory limit exceeded</p>}
+											{result.error && <p>❌ {result.error}</p>}
+										</div>
+									)}
+
+									{isExecuting && (
+										<div className="text-sm text-blue-600 animate-pulse">
+											⚡ Executing...
+										</div>
+									)}
 								</div>
-
-								{result.stdout && (
-									<div className="mb-2">
-										<p className="text-sm font-medium">Output:</p>
-										<pre className="text-sm bg-background p-2 rounded border overflow-auto">
-											{result.stdout}
-										</pre>
-									</div>
-								)}
-
-								{result.stderr && (
-									<div className="mb-2">
-										<p className="text-sm font-medium text-red-600">Error:</p>
-										<pre className="text-sm bg-red-50 p-2 rounded border overflow-auto text-red-800">
-											{result.stderr}
-										</pre>
-									</div>
-								)}
-
-								{(result.timedOut || result.memoryExceeded || result.error) && (
-									<div className="text-sm text-red-600">
-										{result.timedOut && <p>⏰ Time limit exceeded</p>}
-										{result.memoryExceeded && <p>💾 Memory limit exceeded</p>}
-										{result.error && <p>❌ {result.error}</p>}
-									</div>
-								)}
-							</div>
-						))}
+							);
+						})}
 					</div>
 				</div>
 			)}
