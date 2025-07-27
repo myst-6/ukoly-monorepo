@@ -9,7 +9,7 @@
     {
       "class_name": "ExecutionSandbox",
       "image": "./sandbox.Dockerfile",
-      "max_instances": 30
+      "instance_type": "basic"
     }
   ],
   "durable_objects": {
@@ -48,5 +48,8 @@
         "ENVIRONMENT": "local"
       }
     }
+  },
+  "observability": {
+    "enabled": true
   }
 }
