@@ -54,6 +54,12 @@ A programming problems platform built with the Cloudflare ecosystem, featuring s
 - **Time Limits**: Maximum 5 seconds per test case
 - **Memory Limits**: Configurable per test case
 - **Early Termination**: Kills processes that exceed limits
+- **Container Limits**: Maximum 25 concurrent containers (Cloudflare Workers limitation)
+
+### Performance Optimization Opportunities
+- **Execution Pooling**: Consider grouping test cases into batches of 5 per container to reduce container usage and avoid hitting the 25 concurrent container limit
+- **Container Reuse**: Pool containers for sequential execution when parallel execution isn't critical
+- **Smart Batching**: Balance between execution speed (parallel) and resource limits (pooled)
 
 ### Implementation Details
 

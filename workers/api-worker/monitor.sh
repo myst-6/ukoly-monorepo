@@ -72,7 +72,7 @@ while kill -0 $PID 2>/dev/null; do
     done
     
     # Very short sleep for responsiveness
-    sleep 0.001
+    sleep 0.02
 done
 
 # Get final exit code if process finished normally

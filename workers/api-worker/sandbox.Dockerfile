@@ -5,11 +5,10 @@ FROM docker.io/cloudflare/sandbox:0.1.3
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies and monitoring tools
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y \
     # Compilation tools
     gcc \
     g++ \
-    openjdk-17-jdk \
     python3 \
     python3-pip \
     nodejs \
