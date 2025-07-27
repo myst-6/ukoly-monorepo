@@ -56,7 +56,7 @@ jobs:
     - name: Deployment Summary (Console)
       run: |
         echo "🚀 Deployment completed!"
-        echo "📱 Frontend: https://ukoly-monorepo.mborishall.pages.dev"
+        echo "📱 Frontend: https://ukoly-monorepo.mborishall.workers.dev"
         echo "⚡ API Worker: https://api-worker.mborishall.workers.dev"
 
     - name: Comment on PR
@@ -69,7 +69,7 @@ jobs:
           Your changes have been deployed successfully!
 
           ### 🔗 Preview Links:
-          - **📱 Frontend**: https://ukoly-monorepo.mborishall.pages.dev
+          - **📱 Frontend**: https://ukoly-monorepo.mborishall.workers.dev
           - **⚡ API Worker**: https://api-worker.mborishall.workers.dev
 
           ### 🧪 Test Your Changes:
@@ -96,7 +96,7 @@ jobs:
             repo: context.repo.repo,
             sha: context.sha,
             state: 'success',
-            target_url: 'https://ukoly-monorepo.mborishall.pages.dev',
+            target_url: 'https://ukoly-monorepo.mborishall.workers.dev',
             description: 'Deployment successful',
             context: 'deployment/preview'
           }); 

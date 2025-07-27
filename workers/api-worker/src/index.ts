@@ -128,7 +128,7 @@ export default {
 		const origin = request.headers.get("Origin");
 		const allowedOrigins = [
 			"http://localhost:5173",
-			"https://ukoly-monorepo.mborishall.workers.dev/", // for production
+			"https://ukoly-monorepo.mborishall.workers.dev", // for production
 		];
 
 		if (!allowedOrigins.includes(origin || "")) {
