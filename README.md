@@ -1,5 +1,8 @@
 # Ukoly Monorepo
 
+> **⚠️ Work in Progress**  
+> This project is currently under active development and aims to replace the [britishinformatics.org](https://britishinformatics.org) website once completed. Please note that this will take some time as we're building a comprehensive programming problems platform from the ground up.
+
 Programming problems platform built with the Cloudflare ecosystem.
 
 ## Overview
