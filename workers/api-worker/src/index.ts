@@ -277,7 +277,7 @@ export default {
 		const sandboxId = `exec-${Date.now()}-${Math.random()
 			.toString(36)
 			.substr(2, 9)}`;
-		const sandbox = getSandbox(env.Sandbox, sandboxId);
+		const sandbox = getSandbox(env.ExecutionSandbox, sandboxId);
 
 		try {
 			await sandbox.exec("echo 'Hello, world!'"); // allow container to start before doing file I/O)
