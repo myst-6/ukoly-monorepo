@@ -52,5 +52,12 @@
   },
   "observability": {
     "enabled": false
-  }
+  },
+  "secrets_store_secrets": [
+    {
+      "binding": "TURNSTILE_SECRET_KEY",
+      "store_id": "853f0e70dc7c4bfa9bd550dab31969b9",
+      "secret_name": "TURNSTILE_SECRET_KEY"
+    }
+  ]
 }

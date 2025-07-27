@@ -185,8 +185,6 @@ export default {
 	},
 
 	async verifyTurnstileToken(token: string, env: Env, clientIP?: string): Promise<TurnstileVerificationResult> {
-		console.log("verifying turnstile token", env.ENVIRONMENT);
-		
 		// Skip verification in development environment
 		if (env.ENVIRONMENT === "development") {
 			return {
