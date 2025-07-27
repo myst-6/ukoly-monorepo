@@ -2,3 +2,6 @@
 **/.wrangler
 **/out
 **/*.tsbuildinfo
+**/.env
+**/.env.local
+**/worker-configuration.d.ts
