@@ -1,0 +1,24 @@
+{
+  "name": "auth-worker",
+  "version": "1.0.0",
+  "description": "Authentication worker for ukoly platform",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --remote",
+    "deploy": "wrangler deploy",
+    "build": "tsc",
+    "migrate": "wrangler d1 execute ukoly-db --remote --file=schema.sql",
+    "migrate:local": "wrangler d1 execute ukoly-db --local --file=schema.sql",
+    "db:verify": "wrangler d1 execute ukoly-db --remote --command=\"SELECT name FROM sqlite_master WHERE type='table';\"",
+    "db:info": "wrangler d1 info ukoly-db",
+    "db:console": "wrangler d1 execute ukoly-db --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.26.0",
+    "typescript": "^5.0.0",
+    "@cloudflare/workers-types": "^4.0.0"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.0.0"
+  }
+} 

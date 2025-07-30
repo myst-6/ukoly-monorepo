@@ -1,9 +1,9 @@
 {
   "name": "api-worker",
   "main": "src/index.ts",
-  "compatibility_date": "2025-07-26",
+  "compatibility_date": "2025-07-18",
   "dev": {
-    "port": 8787
+    "port": 3001
   },
   "containers": [
     {

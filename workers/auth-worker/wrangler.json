@@ -1,0 +1,32 @@
+{
+  "name": "auth-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-07-18",
+  "dev": {
+    "port": 3002
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ukoly-db",
+      "database_id": "b56fe79b-2c90-4aa9-a1c9-a59af5cdcb4a"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "ADMIN_KV",
+      "id": "20392430b8cb48b08afa7a00d44a4aa7",
+      "preview_id": "a4c8cc1d671c4c1c9f934f74bf7f8708"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "development"
+  },
+  "secrets_store_secrets": [
+    {
+      "binding": "JWT_SECRET",
+      "store_id": "853f0e70dc7c4bfa9bd550dab31969b9",
+      "secret_name": "JWT_SECRET"
+    }
+  ]
+} 

@@ -11,6 +11,8 @@ import {
 import Editor from "@monaco-editor/react";
 import { Code, Play, Settings, Shield, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/lib/auth";
 
 type Language = "javascript" | "python" | "c" | "cpp" | "rust" | "java";
 
@@ -56,7 +58,14 @@ interface TurnstileState {
 declare global {
   interface Window {
     turnstile?: {
-      render: (element: string, options: any) => string;
+      render: (element: string, options: {
+        sitekey: string;
+        callback: (token: string) => void;
+        "error-callback": (error: string) => void;
+        "expired-callback": () => void;
+        theme: string;
+        size: string;
+      }) => string;
       reset: (widgetId?: string) => void;
       getResponse: (widgetId?: string) => string;
       remove: (widgetId?: string) => void;
@@ -133,6 +142,7 @@ const LANGUAGE_INFO: Record<Language, { name: string; monacoLanguage: string; ic
 };
 
 export default function CodeExecutionPage() {
+  const { isAuthenticated } = useAuth();
   const [selectedLanguage, setSelectedLanguage] = useState<Language>("javascript");
   const [code, setCode] = useState(LANGUAGE_TEMPLATES.javascript);
   const [testCasesInput, setTestCasesInput] = useState(`3
@@ -280,6 +290,12 @@ export default function CodeExecutionPage() {
   }, []);
 
   const executeCode = async () => {
+    // Check authentication first
+    if (!isAuthenticated) {
+      setExecutionError("Please log in to execute code. You can browse the interface, but code execution requires authentication.");
+      return;
+    }
+
     // Check Turnstile verification
     if (!turnstileState.isVerified || !turnstileState.token) {
       setExecutionError("Please complete the security verification before executing code.");
@@ -308,14 +324,15 @@ export default function CodeExecutionPage() {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log("WebSocket connected");
-        // Send execution request with Turnstile token
+        // Send execution request with Turnstile token and auth token
+        const authToken = authService.getToken();
         ws.send(
           JSON.stringify({
             code,
             language: selectedLanguage,
             testCases,
             turnstileToken: turnstileState.token, // Include Turnstile token
+            authToken: authToken, // Include auth token for authenticated users
           }),
         );
       };
