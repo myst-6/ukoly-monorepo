@@ -160,8 +160,11 @@ export class SandboxRuntime {
 
   async run(input: ExecutionInput): Promise<ExecutionResult> {
     await this.writeStdin(input.stdin);
-    await this.writeCode(await this.injectStdin(input.stdin));
-    await this.compileIfNeeded();
+    // optimization: if already compiled, don't write code again
+    if (!this.compiled) {
+      await this.writeCode(await this.injectStdin(input.stdin));
+      await this.compileIfNeeded();
+    }
     return await this.executeTimed(input.timeLimitMs, input.memoryLimit);
   }
 }

@@ -260,7 +260,7 @@ export default {
   async verifyAuthToken(authToken: string, env: Env): Promise<{ success: boolean }> {
     try {
       // Make request to auth worker to verify token
-      // Use localhost for development, adjust URL as needed for production
+      // TODO put this in env
       const authWorkerUrl = 'http://localhost:3002';
       const response = await fetch(`${authWorkerUrl}/verify`, {
         method: 'POST',
