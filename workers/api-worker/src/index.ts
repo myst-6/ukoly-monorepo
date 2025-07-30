@@ -46,22 +46,6 @@ export default {
 
     const url = new URL(request.url);
 
-    const origin = request.headers.get("Origin");
-    const allowedOrigins = [
-      "http://localhost:3000", // ukoly local
-      "http://localhost:5173", // monorepo local
-      "https://britishinformatics.org", // ukoly prod
-      "https://www.britishinformatics.org", // ukoly prod
-      "https://ukoly-monorepo.mborishall.workers.dev", // monorepo prod
-    ];
-
-    if (!allowedOrigins.includes(origin || "")) {
-      return new Response("Forbidden", {
-        status: 403,
-        headers: corsHeaders,
-      });
-    }
-
     if (url.pathname === "/api/execute-stream") {
       const upgradeHeader = request.headers.get("Upgrade");
       if (upgradeHeader !== "websocket") {
