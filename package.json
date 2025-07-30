@@ -5,7 +5,7 @@
   "private": true,
   "workspaces": ["frontend", "workers/*"],
   "scripts": {
-    "dev": "concurrently \"pnpm --filter frontend dev\" \"pnpm --filter api-worker dev\" \"pnpm --filter auth-worker dev\"",
+    "dev": "concurrently \"pnpm --filter frontend dev\" \"pnpm --filter api-worker dev\"",
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:api": "pnpm --filter api-worker dev",
     "dev:auth": "pnpm --filter auth-worker dev",

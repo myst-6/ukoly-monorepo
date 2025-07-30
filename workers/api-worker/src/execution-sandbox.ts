@@ -118,13 +118,14 @@ export class SandboxRuntime {
     await this.sandbox.writeFile(this.stdinFile, stdin);
   }
 
-  async compileIfNeeded() {
-    if (!this.languageConfig.isCompiled) return true;
-
+  async compile() {
+    if (!this.languageConfig.isCompiled)
+      throw new Error("Language is not compiled");
     await this.writeCode(this.code);
+    console.log(this.code);
     const compileResult = await this.sandbox.exec(this.languageConfig.compileCommand);
     this.compiled = compileResult.exitCode === 0;
-    return this.compiled;
+    return compileResult;
   }
 
   async injectStdin(stdin: string) {
@@ -158,12 +159,16 @@ export class SandboxRuntime {
     return executionResult;
   }
 
+  /**
+   * If language is compiled, a precondition is that the code has already been compiled.
+   * If the language is not compiled, the code is injected with the stdin.
+   */
   async run(input: ExecutionInput): Promise<ExecutionResult> {
     await this.writeStdin(input.stdin);
-    // optimization: if already compiled, don't write code again
-    if (!this.compiled) {
+    if (!this.languageConfig.isCompiled) {
       await this.writeCode(await this.injectStdin(input.stdin));
-      await this.compileIfNeeded();
+    } else if (!this.compiled) {
+      throw new Error("Language is compiled but the code has not been compiled");
     }
     return await this.executeTimed(input.timeLimitMs, input.memoryLimit);
   }

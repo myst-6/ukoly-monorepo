@@ -23,7 +23,7 @@ interface ExecuteRequest {
   authToken?: string;
 }
 
-type TestResult = ExecutionResult & { testCaseIndex: number };
+type TestResult = ExecutionResult & { testCaseIndex: number, compilationFailed: boolean };
 
 type WebSocketMessage = {
   type: "result" | "error" | "complete" | "compilation_error";
@@ -205,11 +205,35 @@ export default {
     const sandbox = getSandbox(env.ExecutionSandbox, sandboxId);
     const runtime = new SandboxRuntime(sandbox, languageConfig, code);
 
+    if (languageConfig.isCompiled) {
+      const compileResult = await runtime.compile();
+      console.log({compileResult});
+      if (compileResult.exitCode !== 0) {
+        // send CE for each test case
+        for (let i = 0; i < testCases.length; i++) {
+          webSocket.send(JSON.stringify({
+            type: "result", data: {
+              ...compileResult,
+              compilationFailed: true,
+              memoryExceeded: false,
+              memoryKB: 0,
+              timeMS: 0,
+              timedOut: false,
+              testCaseIndex: i,
+            } satisfies TestResult
+          } satisfies WebSocketMessage));
+        }
+        return;
+      }
+    }
+
     for (let i = 0; i < testCases.length; i++) {
       const testCase = testCases[i];
 
       try {
         const executionResult = await runtime.run(testCase);
+
+        console.log({executionResult})
 
         webSocket.send(
           JSON.stringify({
@@ -217,6 +241,7 @@ export default {
             data: {
               ...executionResult,
               testCaseIndex: i,
+              compilationFailed: false,
             },
             totalTestCases: testCases.length,
           } satisfies WebSocketMessage),
@@ -241,6 +266,7 @@ export default {
             data: {
               ...errorResult,
               testCaseIndex: i,
+              compilationFailed: false,
             },
             totalTestCases: testCases.length,
           } satisfies WebSocketMessage),
