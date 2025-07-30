@@ -48,8 +48,11 @@ export default {
 
     const origin = request.headers.get("Origin");
     const allowedOrigins = [
-      "http://localhost:5173",
-      "https://ukoly-monorepo.mborishall.workers.dev", // for production
+      "http://localhost:3000", // ukoly local
+      "http://localhost:5173", // monorepo local
+      "https://britishinformatics.org", // ukoly prod
+      "https://www.britishinformatics.org", // ukoly prod
+      "https://ukoly-monorepo.mborishall.workers.dev", // monorepo prod
     ];
 
     if (!allowedOrigins.includes(origin || "")) {
@@ -98,6 +101,7 @@ export default {
           return;
         }
 
+        /*
         // Check authentication
         if (!data.authToken) {
           webSocket.send(
@@ -142,6 +146,7 @@ export default {
           );
           return;
         }
+          */
 
         const rateLimitResponse = await checkRateLimit(clientIP, env);
 
