@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/lib/auth";
 
-type Language = "javascript" | "python" | "c" | "cpp" | "rust" | "java";
+type Language = "js" | "python" | "c" | "cpp" | "rust" | "java";
 
 interface TestCase {
   stdin: string;
@@ -75,7 +75,7 @@ declare global {
 }
 
 const LANGUAGE_TEMPLATES: Record<Language, string> = {
-  javascript: `const x = input();
+  js: `const x = input();
 const y = input();
 
 console.log((+x) + (+y));`,
@@ -133,7 +133,7 @@ public class Main {
 };
 
 const LANGUAGE_INFO: Record<Language, { name: string; monacoLanguage: string; icon: string }> = {
-  javascript: { name: "JavaScript", monacoLanguage: "javascript", icon: "🟨" },
+  js: { name: "JavaScript", monacoLanguage: "javascript", icon: "🟨" },
   python: { name: "Python", monacoLanguage: "python", icon: "🐍" },
   cpp: { name: "C++", monacoLanguage: "cpp", icon: "⚡" },
   c: { name: "C", monacoLanguage: "c", icon: "🔧" },
@@ -143,8 +143,8 @@ const LANGUAGE_INFO: Record<Language, { name: string; monacoLanguage: string; ic
 
 export default function CodeExecutionPage() {
   const { isAuthenticated } = useAuth();
-  const [selectedLanguage, setSelectedLanguage] = useState<Language>("javascript");
-  const [code, setCode] = useState(LANGUAGE_TEMPLATES.javascript);
+  const [selectedLanguage, setSelectedLanguage] = useState<Language>("js");
+  const [code, setCode] = useState(LANGUAGE_TEMPLATES.js);
   const [testCasesInput, setTestCasesInput] = useState(`3
 4
 ===

@@ -32,10 +32,10 @@ export type LanguageConfig =
       sourceFile: string;
     };
 
-export type Language = "javascript" | "cpp" | "c" | "python";
+export type Language = "js" | "cpp" | "c" | "python";
 
 export const LANGUAGE_CONFIG: Record<Language, LanguageConfig> = {
-  javascript: {
+  js: {
     isCompiled: false,
     sourceFile: "/app/code.js",
     executeCommand: "node /app/code.js",
