@@ -5,11 +5,11 @@ import type {
   Language,
   LanguageConfig,
 } from "./execution-sandbox";
-import { ExecutionSandbox, JavaRustSandbox, LANGUAGE_CONFIG, SandboxRuntime } from "./execution-sandbox";
+import { ExecutionSandbox, JavaSandbox, RustSandbox, LANGUAGE_CONFIG, SandboxRuntime } from "./execution-sandbox";
 import { checkRateLimit, getClientIP, verifyTurnstileToken } from "./protection";
 import { RateLimiter } from "./rate-limiter";
 
-export { RateLimiter, ExecutionSandbox, JavaRustSandbox };
+export { RateLimiter, ExecutionSandbox, JavaSandbox, RustSandbox };
 
 interface ExecuteRequest {
   code: string;

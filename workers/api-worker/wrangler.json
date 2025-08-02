@@ -8,13 +8,19 @@
   "containers": [
     {
       "class_name": "ExecutionSandbox",
-      "image": "./sandbox.Dockerfile",
+      "image": "./images/sandbox.Dockerfile",
       "instance_type": "basic",
       "max_instances": 25
     },
     {
-      "class_name": "JavaRustSandbox",
-      "image": "./java-rust-sandbox.Dockerfile",
+      "class_name": "RustSandbox",
+      "image": "./images/rust-sandbox.Dockerfile",
+      "instance_type": "basic",
+      "max_instances": 25
+    },
+    {
+      "class_name": "JavaSandbox",
+      "image": "./images/java-sandbox.Dockerfile",
       "instance_type": "basic",
       "max_instances": 25
     }
@@ -30,8 +36,12 @@
         "class_name": "ExecutionSandbox"
       },
       {
-        "name": "JavaRustSandbox",
-        "class_name": "JavaRustSandbox"
+        "name": "RustSandbox",
+        "class_name": "RustSandbox"
+      },
+      {
+        "name": "JavaSandbox",
+        "class_name": "JavaSandbox"
       }
     ]
   },
@@ -52,6 +62,11 @@
     {
       "tag": "v3",
       "new_sqlite_classes": ["JavaRustSandbox"]
+    },
+    {
+      "tag": "v4",
+      "deleted_classes": ["JavaRustSandbox"],
+      "new_sqlite_classes": ["JavaSandbox", "RustSandbox"]
     }
   ],
   "vars": {

@@ -17,7 +17,7 @@ export interface ExecutionResult {
   error?: string;
 }
 
-export type SandboxBindingName = "ExecutionSandbox" | "JavaRustSandbox";
+export type SandboxBindingName = "ExecutionSandbox" | "JavaSandbox" | "RustSandbox";
 
 export type LanguageConfig =
   | {
@@ -106,14 +106,14 @@ ${code}
       const heap = ~~(kb / 1024), cls = ~~(heap * 0.2);
       return `java -Xmx${heap}m -Xms${heap}m -XX:CompressedClassSpaceSize=${cls}m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -cp /app Main`;
     },
-    bindingName: "JavaRustSandbox",
+    bindingName: "JavaSandbox",
   },
   rust: {
     isCompiled: true,
     sourceFile: "/app/code.rs",
     compileCommand: "rustc -C opt-level=2 -o /app/executable /app/code.rs",
     executeCommand: "/app/executable",
-    bindingName: "JavaRustSandbox",
+    bindingName: "RustSandbox",
   },
 };
 
@@ -122,7 +122,11 @@ export class ExecutionSandbox extends Sandbox {
   defaultPort = 3000;
   sleepAfter = "20s";
 }
-export class JavaRustSandbox extends Sandbox {
+export class JavaSandbox extends Sandbox {
+  defaultPort = 3000;
+  sleepAfter = "20s";
+}
+export class RustSandbox extends Sandbox {
   defaultPort = 3000;
   sleepAfter = "20s";
 }
@@ -162,11 +166,7 @@ export class SandboxRuntime {
 
   async executeTimed(timeLimitMs: number, memoryLimitKb: number): Promise<ExecutionResult> {
     const executeCommand = typeof this.languageConfig.executeCommand === "function" ? this.languageConfig.executeCommand(memoryLimitKb) : this.languageConfig.executeCommand;
-    const monitorCommand =
-      this.languageConfig.sourceFile.includes("java") ?
-        // for java, we disable ulimit and let the jvm handle the memory limit
-        `/usr/local/bin/monitor.sh ${timeLimitMs / 1000} ${1 << 30} "${executeCommand} < ${this.stdinFile}"`
-        : `/usr/local/bin/monitor.sh ${timeLimitMs / 1000} ${memoryLimitKb} "${executeCommand} < ${this.stdinFile}"`;
+    const monitorCommand = `/usr/local/bin/monitor.sh ${timeLimitMs / 1000} ${memoryLimitKb} "${executeCommand} < ${this.stdinFile}"`;
     const result = await this.sandbox.exec(monitorCommand);
 
     console.log("monitor command", monitorCommand);
