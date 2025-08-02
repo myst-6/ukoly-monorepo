@@ -11,6 +11,12 @@
       "image": "./sandbox.Dockerfile",
       "instance_type": "basic",
       "max_instances": 25
+    },
+    {
+      "class_name": "JavaRustSandbox",
+      "image": "./java-rust-sandbox.Dockerfile",
+      "instance_type": "basic",
+      "max_instances": 25
     }
   ],
   "durable_objects": {
@@ -22,6 +28,10 @@
       {
         "name": "ExecutionSandbox",
         "class_name": "ExecutionSandbox"
+      },
+      {
+        "name": "JavaRustSandbox",
+        "class_name": "JavaRustSandbox"
       }
     ]
   },
@@ -38,6 +48,10 @@
           "to": "ExecutionSandbox"
         }
       ]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["JavaRustSandbox"]
     }
   ],
   "vars": {

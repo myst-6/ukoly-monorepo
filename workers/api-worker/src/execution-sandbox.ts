@@ -17,22 +17,25 @@ export interface ExecutionResult {
   error?: string;
 }
 
+export type SandboxBindingName = "ExecutionSandbox" | "JavaRustSandbox";
+
 export type LanguageConfig =
   | {
-      isCompiled: true;
-      compileCommand: string;
-      executeCommand: string;
-      sourceFile: string;
-      compileFile: string;
-    }
+    isCompiled: true;
+    compileCommand: string;
+    executeCommand: string | ((memoryLimitKb: number) => string);
+    sourceFile: string;
+    bindingName: SandboxBindingName;
+  }
   | {
-      isCompiled: false;
-      setupStdin?: (code: string, stdin: string) => string;
-      executeCommand: string;
-      sourceFile: string;
-    };
+    isCompiled: false;
+    setupStdin?: (code: string, stdin: string) => string;
+    executeCommand: string;
+    sourceFile: string;
+    bindingName: SandboxBindingName;
+  };
 
-export type Language = "js" | "cpp" | "c" | "python";
+export type Language = "js" | "cpp" | "c" | "python" | "java" | "rust";
 
 export const LANGUAGE_CONFIG: Record<Language, LanguageConfig> = {
   js: {
@@ -51,20 +54,21 @@ ${code}
 })();
 `;
     },
+    bindingName: "ExecutionSandbox",
   },
   cpp: {
     isCompiled: true,
     sourceFile: "/app/code.cpp",
-    compileFile: "/app/executable",
     compileCommand: "g++ -std=c++17 -O2 -o /app/executable /app/code.cpp",
     executeCommand: "/app/executable",
+    bindingName: "ExecutionSandbox",
   },
   c: {
     isCompiled: true,
     compileCommand: "gcc -std=c11 -O2 -o /app/executable /app/code.c",
     executeCommand: "/app/executable",
     sourceFile: "/app/code.c",
-    compileFile: "/app/executable",
+    bindingName: "ExecutionSandbox",
   },
   python: {
     isCompiled: false,
@@ -92,11 +96,33 @@ def input():
 ${code}
 `;
     },
+    bindingName: "ExecutionSandbox",
+  },
+  java: {
+    isCompiled: true,
+    sourceFile: "/app/Main.java",
+    compileCommand: "javac /app/Main.java",
+    executeCommand: kb => {
+      const heap = ~~(kb / 1024), cls = ~~(heap * 0.2);
+      return `java -Xmx${heap}m -Xms${heap}m -XX:CompressedClassSpaceSize=${cls}m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -cp /app Main`;
+    },
+    bindingName: "JavaRustSandbox",
+  },
+  rust: {
+    isCompiled: true,
+    sourceFile: "/app/code.rs",
+    compileCommand: "rustc -C opt-level=2 -o /app/executable /app/code.rs",
+    executeCommand: "/app/executable",
+    bindingName: "JavaRustSandbox",
   },
 };
 
 // Handles multiple test cases sequentially, sleeps after 20s
 export class ExecutionSandbox extends Sandbox {
+  defaultPort = 3000;
+  sleepAfter = "20s";
+}
+export class JavaRustSandbox extends Sandbox {
   defaultPort = 3000;
   sleepAfter = "20s";
 }
@@ -106,7 +132,7 @@ export class SandboxRuntime {
     private sandbox: DurableObjectStub<Sandbox<unknown>>,
     private languageConfig: LanguageConfig,
     private code: string,
-  ) {}
+  ) { }
   compiled = false;
   stdinFile = "/app/stdin.txt" as const;
 
@@ -135,11 +161,17 @@ export class SandboxRuntime {
   }
 
   async executeTimed(timeLimitMs: number, memoryLimitKb: number): Promise<ExecutionResult> {
-    const monitorCommand = `/usr/local/bin/monitor.sh ${timeLimitMs / 1000} ${memoryLimitKb} "${this.languageConfig.executeCommand} < ${this.stdinFile}"`;
+    const executeCommand = typeof this.languageConfig.executeCommand === "function" ? this.languageConfig.executeCommand(memoryLimitKb) : this.languageConfig.executeCommand;
+    const monitorCommand =
+      this.languageConfig.sourceFile.includes("java") ?
+        // for java, we disable ulimit and let the jvm handle the memory limit
+        `/usr/local/bin/monitor.sh ${timeLimitMs / 1000} ${1 << 30} "${executeCommand} < ${this.stdinFile}"`
+        : `/usr/local/bin/monitor.sh ${timeLimitMs / 1000} ${memoryLimitKb} "${executeCommand} < ${this.stdinFile}"`;
     const result = await this.sandbox.exec(monitorCommand);
 
     console.log("monitor command", monitorCommand);
     console.log("result", result);
+    console.log("memory limit", memoryLimitKb);
 
     const outputLines = (result.stdout || "").trim().split("\n");
     const memoryKB = outputLines.pop();

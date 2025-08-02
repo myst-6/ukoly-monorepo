@@ -137,8 +137,8 @@ const LANGUAGE_INFO: Record<Language, { name: string; monacoLanguage: string; ic
   python: { name: "Python", monacoLanguage: "python", icon: "🐍" },
   cpp: { name: "C++", monacoLanguage: "cpp", icon: "⚡" },
   c: { name: "C", monacoLanguage: "c", icon: "🔧" },
-  rust: { name: "Rust (Unsupported)", monacoLanguage: "rust", icon: "🦀" },
-  java: { name: "Java (Unsupported)", monacoLanguage: "java", icon: "☕" },
+  rust: { name: "Rust", monacoLanguage: "rust", icon: "🦀" },
+  java: { name: "Java", monacoLanguage: "java", icon: "☕" },
 };
 
 export default function CodeExecutionPage() {

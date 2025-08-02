@@ -5,11 +5,11 @@ import type {
   Language,
   LanguageConfig,
 } from "./execution-sandbox";
-import { ExecutionSandbox, LANGUAGE_CONFIG, SandboxRuntime } from "./execution-sandbox";
+import { ExecutionSandbox, JavaRustSandbox, LANGUAGE_CONFIG, SandboxRuntime } from "./execution-sandbox";
 import { checkRateLimit, getClientIP, verifyTurnstileToken } from "./protection";
 import { RateLimiter } from "./rate-limiter";
 
-export { RateLimiter, ExecutionSandbox };
+export { RateLimiter, ExecutionSandbox, JavaRustSandbox };
 
 interface ExecuteRequest {
   code: string;
@@ -186,7 +186,10 @@ export default {
     webSocket: WebSocket,
   ): Promise<void> {
     const sandboxId = `exec-stream-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    const sandbox = getSandbox(env.ExecutionSandbox, sandboxId);
+    const sandbox = getSandbox(
+      env[languageConfig.bindingName],
+      sandboxId,
+    );
     const runtime = new SandboxRuntime(sandbox, languageConfig, code);
 
     if (languageConfig.isCompiled) {
