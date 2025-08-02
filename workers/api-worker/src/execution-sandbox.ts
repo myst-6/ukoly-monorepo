@@ -3,7 +3,7 @@ import { Sandbox } from "@cloudflare/sandbox";
 export interface ExecutionInput {
   stdin: string;
   timeLimitMs: number;
-  memoryLimit: number;
+  memoryLimitKb: number;
 }
 
 export interface ExecutionResult {
@@ -202,6 +202,6 @@ export class SandboxRuntime {
     } else if (!this.compiled) {
       throw new Error("Language is compiled but the code has not been compiled");
     }
-    return await this.executeTimed(input.timeLimitMs, input.memoryLimit);
+    return await this.executeTimed(input.timeLimitMs, input.memoryLimitKb);
   }
 }

@@ -19,7 +19,7 @@ type Language = "js" | "python" | "c" | "cpp" | "rust" | "java";
 interface TestCase {
   stdin: string;
   timeLimitMs: number;
-  memoryLimit: number;
+  memoryLimitKb: number;
 }
 
 interface TestResult {
@@ -274,7 +274,7 @@ export default function CodeExecutionPage() {
     return input.split("===").map((testCase) => ({
       stdin: testCase.trim(),
       timeLimitMs: 1000, // 1 second
-      memoryLimit: 1024 * 1024, // 1MB
+      memoryLimitKb: 1024 * 1024, // 1MB
     }));
   };
 

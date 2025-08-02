@@ -17,7 +17,7 @@ interface ExecuteRequest {
   testCases: Array<{
     stdin: string;
     timeLimitMs: number;
-    memoryLimit: number;
+    memoryLimitKb: number;
   }>;
   turnstileToken?: string;
   authToken?: string;
@@ -107,7 +107,7 @@ export default {
             } as WebSocketMessage),
           );
           return;
-        }
+        }*/
 
         if (!data.turnstileToken) {
           webSocket.send(
@@ -130,7 +130,6 @@ export default {
           );
           return;
         }
-          */
 
         const rateLimitResponse = await checkRateLimit(clientIP, env);
 

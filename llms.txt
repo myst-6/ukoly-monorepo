@@ -126,8 +126,8 @@ interface ExecuteRequest {
   language: 'javascript' | 'python' | 'c' | 'cpp';
   testCases: Array<{
     stdin: string;
-    timeLimit: number; // milliseconds
-    memoryLimit: number; // bytes
+    timeLimitMs: number; // milliseconds
+    memoryLimitKb: number; // bytes
   }>;
 }
 
