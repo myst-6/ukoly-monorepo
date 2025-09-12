@@ -13,7 +13,7 @@ TIME_FILE=$(mktemp)
 START_TIME=$(date +%s%3N)
 
 # Use time to wrap the timeout command (reverse of before)
-/usr/bin/time -f "%M" -o "$TIME_FILE" timeout --preserve-status --kill-after=1 "$TIME_LIMIT" bash -c "$COMMAND" > "$STDOUT_FILE"
+/usr/bin/time -f "%M" -o "$TIME_FILE" timeout --preserve-status --kill-after=1 "$TIME_LIMIT" bash -c "stdbuf -o0 -e0 $COMMAND" > "$STDOUT_FILE"
 STATUS=$?
 
 # Capture end time in milliseconds
