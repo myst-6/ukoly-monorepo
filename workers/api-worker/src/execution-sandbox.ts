@@ -174,16 +174,16 @@ export class SandboxRuntime {
     console.log("memory limit", memoryLimitKb);
 
     const outputLines = (result.stdout || "").trimEnd().split("\n");
-    const memoryKBLine = outputLines.pop();
-    const timeMSLine = outputLines.pop();
+    const memoryKB = outputLines.pop();
+    const timeMS = outputLines.pop();
     const programOutput = outputLines.join("\n");
 
     const executionResult: ExecutionResult = {
       stdout: programOutput,
       stderr: result.stderr || "",
       exitCode: result.exitCode || 0,
-      memoryKB: Number.parseInt(memoryKBLine || "0"),
-      timeMS: Number.parseInt(timeMSLine || "0"),
+      memoryKB: Number.parseInt(memoryKB || "0"),
+      timeMS: Number.parseInt(timeMS || "0"),
       timedOut: result.exitCode === 143,
       memoryExceeded: result.exitCode === 134,
     };
