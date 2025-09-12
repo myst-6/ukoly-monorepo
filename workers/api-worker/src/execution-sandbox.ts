@@ -173,13 +173,9 @@ export class SandboxRuntime {
     console.log("result", result);
     console.log("memory limit", memoryLimitKb);
 
-    const stdoutRaw = result.stdout || "";
-    const outputLines = stdoutRaw.split("\n");
-    if (outputLines.length > 0 && outputLines[outputLines.length - 1] === "") {
-      outputLines.pop();
-    }
-    const memoryKBLine = outputLines.pop() || "0";
-    const timeMSLine = outputLines.pop() || "0";
+    const outputLines = (result.stdout || "").trimEnd().split("\n");
+    const memoryKBLine = outputLines.pop();
+    const timeMSLine = outputLines.pop();
     const programOutput = outputLines.join("\n");
 
     const executionResult: ExecutionResult = {
