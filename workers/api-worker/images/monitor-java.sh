@@ -33,6 +33,7 @@ MEM_KB=$(tail -1 "$TIME_FILE" 2>/dev/null || echo "0")
 rm -f "$STDOUT_FILE" "$TIME_FILE"
 
 # Print time/memory stats to stdout
+echo ""               # Add newline after stdout
 echo "$EXEC_TIME_MS"  # Time in MS (actual measurement)
 echo "$MEM_KB"        # Memory in KB from time command
 
